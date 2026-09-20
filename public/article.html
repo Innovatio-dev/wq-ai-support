@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Help article · WealthQuest Support</title>
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/urbanist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/montserrat-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/fonts/fonts.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script type="module" src="/js/article.js"></script>
+</head>
+<body class="article-page">
+  <div class="page">
+    <div id="site-header"></div>
+    <div class="glow" aria-hidden="true" style="left:calc(50% - 176px);top:0"></div>
+    <div class="article-wrap">
+      <div class="article-top">
+        <div class="toggle-row" id="toggle"></div>
+        <form class="qbox" id="ai-form" autocomplete="off">
+          <label class="sr-only" for="q">Ask a question or describe your issue</label>
+          <textarea id="q" maxlength="2000" placeholder="Ask a question or describe your issue..."></textarea>
+        </form>
+        <div id="basic" hidden>
+          <div class="qbox">
+            <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="M20 20l-4.4-4.4"/></svg>
+            <label class="sr-only" for="s">Search help articles</label>
+            <input id="s" type="search" placeholder="Search help articles..." autocomplete="off">
+          </div>
+          <ul class="search-results" id="results" hidden></ul>
+        </div>
+      </div>
+
+      <div class="article-grid">
+        <article class="article" id="article" aria-live="polite">
+          <nav class="crumbs" aria-label="Breadcrumb" id="crumbs"></nav>
+          <h1 id="title"></h1>
+          <div class="md" id="body"></div>
+          <section class="related" id="related" hidden><h3>Related articles</h3><div id="related-links"></div></section>
+          <section class="help-card">
+            <h2>We’re here to help</h2>
+            <p>Can’t find the answer you’re looking for? Drop us a message and we’ll respond within 24 hours.</p>
+            <a class="btn" href="/ticket">Open a Ticket</a>
+          </section>
+        </article>
+        <aside class="sidebar" id="sidebar" aria-label="Help topics"></aside>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

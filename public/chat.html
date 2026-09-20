@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat with Athena · WealthQuest Support</title>
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/urbanist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/fonts/fonts.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script type="module" src="/js/chat.js"></script>
+</head>
+<body class="chat-page">
+  <div class="page">
+    <div id="site-header"></div>
+    <main class="chat-col">
+      <h1 class="title">Hi there. How can we help?</h1>
+      <p class="subtitle">Find answers or connect with our Support team.</p>
+
+      <form class="search-pill" id="pill" autocomplete="off">
+        <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="M20 20l-4.4-4.4"/></svg>
+        <label class="sr-only" for="first">Your question</label>
+        <input id="first" maxlength="2000" placeholder="Search or ask a question">
+        <button class="clear" type="button" id="clear" aria-label="Clear and start a new conversation" hidden></button>
+      </form>
+
+      <section class="chat-card" id="card" aria-label="Chat with Athena">
+        <div class="chat-header">
+          <span id="hdr-fleur"></span>
+          <div class="who"><span class="name">Athena</span><span class="role">Support Agent</span></div>
+        </div>
+        <div class="chat-body" id="body" aria-live="polite"></div>
+        <form class="chat-input" id="composer" autocomplete="off">
+          <div class="pill-input">
+            <label class="sr-only" for="msg">Message</label>
+            <input id="msg" maxlength="2000" placeholder="Ask a detailed question...">
+            <button class="round-btn" type="submit" aria-label="Send" id="send"></button>
+          </div>
+        </form>
+      </section>
+      <div style="height:24px"></div>
+    </main>
+  </div>
+</body>
+</html>

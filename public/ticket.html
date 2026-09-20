@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Open a ticket · WealthQuest Support</title>
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/urbanist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/fonts/fonts.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script type="module" src="/js/ticket.js"></script>
+</head>
+<body class="ticket-page">
+  <div class="page">
+    <div id="site-header"></div>
+    <div class="glow" aria-hidden="true"></div>
+    <main class="col">
+      <h1 class="title">Open a ticket</h1>
+      <p class="subtitle">Can’t find the answer you’re looking for? Drop us a message and we’ll respond within 24 hours.</p>
+
+      <form class="form-card" id="form" novalidate>
+        <label class="lbl" for="cat">Category</label>
+        <div class="field">
+          <select id="cat" name="category" required><option value="" selected disabled>Select category</option></select>
+          <span id="cat-chev"></span>
+        </div>
+
+        <div class="lbl-row"><label class="lbl" for="desc">Description of the problem</label><span class="count" id="count">0 / 2,000</span></div>
+        <div class="field"><textarea id="desc" name="description" maxlength="2000" placeholder="Describe your problem or ask a question..."></textarea></div>
+
+        <div class="lbl-row"><span class="lbl" id="att-l">Add attachments</span></div>
+        <div class="dropzone" id="drop" aria-labelledby="att-l">
+          <p>Drag and drop a file or browse to upload</p>
+          <button class="btn" type="button" id="browse"></button>
+          <input type="file" id="file" accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" multiple hidden>
+          <small>Attach up to 3 (jpg, png or pdf) files of MAX 10MB</small>
+        </div>
+        <ul class="files" id="files"></ul>
+        <div class="form-error" id="err" role="alert" hidden></div>
+
+        <div class="submit-row"><button class="btn" type="submit" id="submit" disabled>Submit</button></div>
+      </form>
+
+      <section class="success" id="success" hidden>
+        <div class="check" id="check"></div>
+        <h2>Your ticket has been submitted</h2>
+        <p>Your ticket number is <span class="num" id="num"></span>. A specialist will review it and follow up by email within 24 hours. If you need to add details later, just reply to that email thread.</p>
+        <a class="btn" href="/">Back to Support</a>
+      </section>
+      <div class="page-bottom"></div>
+    </main>
+  </div>
+</body>
+</html>

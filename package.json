@@ -1,0 +1,25 @@
+{
+  "name": "wq-agents-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WealthQuest Support Agent + Compensation Plan Agent prototype (Express + OpenAI Responses API)",
+  "type": "module",
+  "main": "server.js",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "mock": "MOCK_OPENAI=1 DEMO_PASSWORD=demo node server.js",
+    "test": "node --test test/*.test.js",
+    "screenshots": "node scripts/screenshots.mjs"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
+    "openai": "7.20.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.55.0"
+  }
+}

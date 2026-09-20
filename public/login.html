@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Demo access · WealthQuest</title>
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/fonts/fonts.css">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <main class="gate">
+    <form class="gate-card" method="post" id="f">
+      <span class="logo"><img src="/img/favicon.svg" alt="" width="33" height="33"><span>WealthQuest</span></span>
+      <h1>Prototype access</h1>
+      <p>This demo is password protected.</p>
+      <label class="sr-only" for="pw">Password</label>
+      <input id="pw" name="password" type="password" autocomplete="current-password" placeholder="Password" required autofocus>
+      <button class="btn" type="submit">Continue</button>
+      <div class="err" id="err" hidden>Wrong password. Please try again.</div>
+    </form>
+  </main>
+  <script src="/js/login.js"></script>
+</body>
+</html>

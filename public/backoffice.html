@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard · WealthQuest Back Office</title>
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/urbanist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/montserrat-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/fonts/fonts.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script type="module" src="/js/backoffice.js"></script>
+</head>
+<body class="bo">
+  <div class="bo-shell">
+    <aside class="bo-side" aria-label="Back Office navigation">
+      <div class="bo-brand"><a class="logo" href="/backoffice" id="bo-logo"><span>WealthQuest</span></a><span id="pt"></span></div>
+      <nav class="bo-nav" id="nav"></nav>
+      <div class="bo-user"><span class="av">MK</span><div><b>Maria Kovač</b><span>Bronze Manager</span></div></div>
+    </aside>
+
+    <div class="bo-main">
+      <header class="bo-top">
+        <a class="bo-mlogo" href="/backoffice" id="bo-mlogo" aria-label="WealthQuest Back Office"></a>
+        <span class="bo-date" id="date"></span>
+        <label class="bo-search"><span id="s-ico"></span><span class="sr-only">Search</span><input placeholder="Search members, transactions, content..."><kbd>⌘K</kbd></label>
+        <div class="bo-actions">
+          <a class="btn hide-md" href="#" id="enroll"></a>
+          <a class="btn btn-teal hide-md" href="#" id="share"></a>
+          <button class="icon-btn" type="button" aria-label="Notifications (3 unread)" id="bell"></button>
+          <button class="icon-btn" type="button" aria-label="Language: English (US)" id="flag"></button>
+        </div>
+      </header>
+
+      <main class="bo-content">
+        <div class="bo-head"><h1>Dashboard</h1><p id="who">Maria Kovač</p></div>
+        <div class="bo-grid" id="grid" aria-busy="true"></div>
+      </main>
+    </div>
+  </div>
+
+  <button class="launcher" type="button" id="launcher" aria-label="Open Athena chat" aria-expanded="false" aria-controls="panel"></button>
+  <section class="panel" id="panel" hidden aria-label="Athena">
+    <div class="chat-header">
+      <span id="p-fleur"></span>
+      <div class="who"><span class="name">Athena</span><span class="role" id="p-role">Support Agent</span></div>
+      <button class="x" type="button" id="p-close" aria-label="Close chat"></button>
+    </div>
+    <div class="mode"><div class="toggle" role="tablist" aria-label="Agent">
+      <button type="button" role="tab" data-mode="support" aria-selected="true">Support</button>
+      <button type="button" role="tab" data-mode="comp" aria-selected="false">My earnings</button>
+    </div></div>
+    <div class="chat-body" id="body-support" aria-live="polite"></div>
+    <div class="chat-body" id="body-comp" aria-live="polite" hidden></div>
+    <form class="chat-input" id="composer" autocomplete="off">
+      <div class="pill-input">
+        <label class="sr-only" for="msg">Message</label>
+        <input id="msg" maxlength="2000" placeholder="Ask a detailed question...">
+        <button class="round-btn" type="submit" aria-label="Send" id="send"></button>
+      </div>
+    </form>
+  </section>
+</body>
+</html>
