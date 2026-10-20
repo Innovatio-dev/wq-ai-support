@@ -31,8 +31,14 @@ export function mountHeader(target = $('#site-header')) {
   if (!target) return;
   target.outerHTML = `<header class="site-header">
     <a class="logo" href="/" aria-label="WealthQuest Support home">${fleur()}<span>WealthQuest</span></a>
-    <a class="btn btn-login" href="/backoffice">Log in</a>
+    <a class="btn btn-login" href="/" hidden>Log in</a>
   </header>`;
+  // "Log in" goes to the demo Back Office in demo mode, otherwise to the main app's sign-in page.
+  getConfig().then((cfg) => {
+    const href = cfg.demo ? '/backoffice' : cfg.main_app_url ? `${cfg.main_app_url}/login` : null;
+    const btn = $('.site-header .btn-login');
+    if (href && btn) { btn.href = href; btn.hidden = false; }
+  }).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------------------------

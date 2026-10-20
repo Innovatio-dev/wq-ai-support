@@ -55,6 +55,9 @@ With no key and `MOCK_OPENAI` not set, the pages still load. The AI endpoints th
 | `DAILY_BUDGET_USD` | `5` | Global daily limit on AI spend, computed from real usage. Once it is reached, requests get a friendly refusal. |
 | `TURNSTILE_SECRET` / `TURNSTILE_SITE_KEY` | – | Optional Cloudflare Turnstile. When set, the first message of each conversation must carry a token, which the server checks with `siteverify`. |
 | `ALLOWED_PARENT_ORIGINS` | dev: `http://localhost:3333,http://localhost:3334`; production: none | Comma-separated main-app origins allowed to frame `/embed`. Every other page refuses framing. |
+| `DEMO_MODE` | on in development, off when `NODE_ENV=production` | The demo-only parts: `/backoffice` (simulated Maria), `/mock/api/v1` and the Compensation agent. Off, they return 404 and nobody is "Maria". |
+| `MAIN_APP_URL` | – | The WealthQuest main app. Outside demo mode the help pages' "Log in" points at its `/login` (hidden when unset). |
+| `WQ_ISSUER` / `WQ_JWKS_URL` / `WQ_AUDIENCE` | – / `$WQ_ISSUER/.well-known/jwks.json` / `wq-ai-support` | Member sign-in: the main app signs a short-lived EdDSA token (`typ: wq-ai+jwt`); this server verifies it against the main app's JWKS (`src/identity.js`). Unset issuer = every request is a guest, and a request that sends a token is refused. |
 | `PORT` | `3000` | |
 
 ## Architecture

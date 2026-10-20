@@ -14,6 +14,7 @@ import { loadKnowledgeBases } from './src/kb.js';
 import { getClient, hasKey, NO_KEY_MESSAGE } from './src/openai.js';
 import { openSse } from './src/sse.js';
 import { getOrCreateConversation, isFull } from './src/conversations.js';
+import { identify, ownerKey } from './src/identity.js';
 import { runSupportTurn } from './src/agents/support.js';
 import { runCompTurn } from './src/agents/comp.js';
 import { createTicket } from './src/tickets.js';
@@ -62,15 +63,20 @@ app.get('/help/{*path}', (req, res) => {
   if (!kb.support.has(p)) return res.status(404).sendFile(path.join(PUBLIC, '404.html'));
   res.sendFile(path.join(PUBLIC, 'article.html'));
 });
-app.get('/backoffice', (req, res) => {
-  // Simulated login: visiting the Back Office "signs in" Maria. In production = real auth session.
-  setBackofficeCookie(res);
-  res.sendFile(path.join(PUBLIC, 'backoffice.html'));
-});
+if (config.demoMode) {
+  app.get('/backoffice', (req, res) => {
+    // Simulated login: visiting the demo Back Office "signs in" Maria.
+    setBackofficeCookie(res);
+    res.sendFile(path.join(PUBLIC, 'backoffice.html'));
+  });
+} else {
+  // Outside demo mode the demo Back Office's files aren't served either.
+  app.use(['/backoffice.html', '/js/backoffice.js'], (req, res) => res.status(404).sendFile(path.join(PUBLIC, '404.html')));
+}
 app.use(express.static(PUBLIC, { index: false, maxAge: config.isProduction ? '1h' : 0 }));
 
-// ---------- mock WealthQuest API ----------
-app.use('/mock/api/v1', mockApiRouter({ principalFromRequest: backofficePrincipal }));
+// ---------- mock WealthQuest API (demo only) ----------
+if (config.demoMode) app.use('/mock/api/v1', mockApiRouter({ principalFromRequest: backofficePrincipal }));
 
 // ---------- read-only APIs ----------
 app.get('/api/config', (req, res) => {
@@ -86,6 +92,8 @@ app.get('/api/config', (req, res) => {
     ticket_categories: kb.support.ticketCategories(),
     max_input_chars: config.limits.maxInputChars,
     embed_parent_origins: config.allowedParentOrigins,
+    demo: config.demoMode,
+    main_app_url: config.mainAppUrl || null,
     budget: budgetStatus(),
   });
 });
@@ -95,7 +103,7 @@ app.get('/api/kb/article', (req, res) => {
   if (!data) return res.status(404).json({ error: 'not_found' });
   res.json(data);
 });
-app.get('/api/backoffice/summary', requireBackoffice, async (req, res) => {
+if (config.demoMode) app.get('/api/backoffice/summary', requireBackoffice, async (req, res) => {
   const principal = backofficePrincipal(req);
   const api = mockApiClient(principal);
   const id = principal.distributor_id;
@@ -116,7 +124,8 @@ function agentEndpoint(agent) {
     if (!getClient()) return res.status(503).json({ error: 'no_key', message: NO_KEY_MESSAGE });
     if (budgetExceeded()) return res.status(429).json({ error: 'budget', message: BUDGET_MESSAGE });
 
-    const { conv, isNew } = getOrCreateConversation({ id: typeof body.conversation_id === 'string' ? body.conversation_id : null, sid: req.sid, agent });
+    const owner = ownerKey(req);
+    const { conv, isNew } = getOrCreateConversation({ id: typeof body.conversation_id === 'string' ? body.conversation_id : null, owner, agent });
     if (isNew && !(await verifyTurnstile(body.turnstile_token, req.ip))) {
       return res.status(403).json({ error: 'turnstile', message: 'Please complete the verification and try again.' });
     }
@@ -128,8 +137,8 @@ function agentEndpoint(agent) {
     sse.send('status', { text: 'Working on your answer', conversation_id: conv.id, combo: combo.key });
     const t0 = performance.now();
     try {
-      const args = { text: cleanText(body.text), conv, combo, safetyId: safetyIdentifier(req.sid), sse };
-      if (agent === 'support') await runSupportTurn({ ...args, surface: body.surface === 'backoffice' ? 'backoffice' : 'public' });
+      const args = { text: cleanText(body.text), conv, combo, safetyId: safetyIdentifier(owner), sse };
+      if (agent === 'support') await runSupportTurn({ ...args, user: signedInUser(req, body.surface) });
       else await runCompTurn({ ...args, principal: backofficePrincipal(req) });
       sse.send('done', { conversation_id: conv.id, total_ms: Math.round(performance.now() - t0) });
     } catch (e) {
@@ -139,6 +148,16 @@ function agentEndpoint(agent) {
       sse.end();
     }
   };
+}
+
+/**
+ * Who the agent may treat as signed in — decided here, never by the client: a verified member token, or
+ * (demo mode only) the simulated Back Office user when the request comes from the demo Back Office.
+ */
+function signedInUser(req, surface) {
+  if (req.member) return { name: req.member.name };
+  const demo = surface === 'backoffice' ? backofficePrincipal(req) : null;
+  return demo ? { name: config.backofficeUser.display_name, distributorId: demo.distributor_id } : null;
 }
 
 function friendlyError(e) {
@@ -151,21 +170,25 @@ function friendlyError(e) {
   return 'Something went wrong while generating the answer. Please try again.';
 }
 
-app.post('/api/support/message', aiRateLimit, agentEndpoint('support'));
-app.post('/api/comp/message', requireBackoffice, aiRateLimit, agentEndpoint('comp'));
+app.post('/api/support/message', identify, aiRateLimit, agentEndpoint('support'));
+// The Compensation agent runs on the mock API's demo data, so it exists only in demo mode
+// ("My earnings" is "Coming soon" in the main app).
+if (config.demoMode) app.post('/api/comp/message', requireBackoffice, aiRateLimit, agentEndpoint('comp'));
 
 // ---------- tickets ----------
-app.post('/api/tickets', ticketRateLimit, (req, res) => {
+app.post('/api/tickets', identify, ticketRateLimit, (req, res) => {
   const { category, description, conversation_id: conversationId, attachments, surface } = req.body || {};
   const categories = kb.support.ticketCategories();
   if (typeof category !== 'string' || !categories.includes(category)) return res.status(400).json({ error: 'invalid_category', message: 'Please choose a category.' });
   if (typeof description !== 'string' || description.trim().length < 5) return res.status(400).json({ error: 'invalid_description', message: 'Please describe the problem.' });
   if (description.length > config.limits.maxInputChars) return res.status(400).json({ error: 'too_long', message: 'Description is too long.' });
   const files = Array.isArray(attachments) ? attachments.slice(0, 3).map((f) => ({ name: String(f?.name || '').slice(0, 120), size: Number(f?.size) || 0, type: String(f?.type || '').slice(0, 40) })) : [];
-  const bo = surface === 'backoffice' ? backofficePrincipal(req) : null;
+  // Tickets still land in data/tickets.jsonl; forwarding them to the main app is step 5 of the embed plan.
+  const user = signedInUser(req, surface);
   const ticket = createTicket({
     category, description: cleanText(description), sid: req.sid, conversationId: typeof conversationId === 'string' ? conversationId : null,
-    user: bo ? { distributor_id: bo.distributor_id, name: config.backofficeUser.display_name } : null, surface: bo ? 'backoffice' : 'public', attachments: files,
+    user: user ? { member_sub: req.member?.sub ?? null, distributor_id: user.distributorId ?? null, name: user.name } : null,
+    surface: req.member ? 'member' : user ? 'backoffice' : 'public', attachments: files,
   });
   res.status(201).json({ ticket_number: ticket.ticket_number });
 });
@@ -184,5 +207,10 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
 
 app.listen(config.port, () => {
   const mode = config.mock ? 'MOCK_OPENAI (no real API calls)' : hasKey() ? 'live OpenRouter' : 'NO OPENROUTER KEY (AI endpoints will return an error)';
-  console.log(`WealthQuest agents demo on http://localhost:${config.port} — ${mode}${config.demoPassword ? ', password gate ON' : ''}`);
+  const extras = [
+    config.demoMode ? 'demo mode ON' : 'demo mode off',
+    config.demoPassword && 'password gate ON',
+    `member sign-in ${config.wqIssuer ? `via ${config.wqIssuer}` : 'off'}`,
+  ].filter(Boolean);
+  console.log(`WealthQuest agents on http://localhost:${config.port} — ${mode}, ${extras.join(', ')}`);
 });

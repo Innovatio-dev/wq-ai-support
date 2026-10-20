@@ -135,9 +135,9 @@ Built one step at a time, each committed on `feat/embed-widget`:
 | Step | What | Status |
 |---|---|---|
 | 1 | `/embed` panel (guest / member, My earnings "Soon"), close → parent, framing only for `ALLOWED_PARENT_ORIGINS`, `npm run embed:host` stand-in | ✅ done |
-| 2 | Production mode: demo pages, mock API and comp agent off | next |
-| 3 | Verify the main app's token (JWKS) and bind conversations to the member | |
-| 4 | postMessage token handshake: refresh, sign-out, user switch | |
+| 2 | Production mode (`DEMO_MODE` off): demo Back Office, mock API and comp agent return 404; "Log in" → `MAIN_APP_URL/login` | ✅ done |
+| 3 | Verify the main app's token (`src/identity.js`: EdDSA, `iss`/`aud`/`typ`, ≤15 min, JWKS cached); conversations, rate limits and `safety_identifier` keyed by member; the agent's "signed in" context decided by the server | ✅ done |
+| 4 | postMessage token handshake: refresh, sign-out, user switch | next |
 | 5 | Tickets forwarded to the main app | |
 | 6 | Main-app side (`wealth-quest`) behind `ai_support_widget` | |
 

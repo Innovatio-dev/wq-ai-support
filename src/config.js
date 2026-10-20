@@ -32,6 +32,17 @@ export const config = {
   turnstileSecret: env.TURNSTILE_SECRET || '',
   turnstileSiteKey: env.TURNSTILE_SITE_KEY || '',
   isProduction,
+  // Demo-only parts: the simulated Back Office (Maria), the mock WealthQuest API and the Compensation
+  // agent that runs on it. On by default in development, off in production unless DEMO_MODE=1.
+  demoMode: env.DEMO_MODE !== undefined ? env.DEMO_MODE === '1' || env.DEMO_MODE === 'true' : !isProduction,
+  // The WealthQuest main app; the help pages' "Log in" button points at its sign-in page.
+  mainAppUrl: parseOrigins(env.MAIN_APP_URL)[0] || '',
+
+  // Member tokens minted by the main app (docs/embed-auth-plan.md §4.2). Unset WQ_ISSUER = members can't sign in
+  // (every request is a guest). WQ_JWKS_URL defaults to the issuer's published key set.
+  wqIssuer: (env.WQ_ISSUER || '').trim(),
+  wqJwksUrl: (env.WQ_JWKS_URL || '').trim() || (env.WQ_ISSUER ? `${env.WQ_ISSUER.trim().replace(/\/+$/, '')}/.well-known/jwks.json` : ''),
+  wqAudience: (env.WQ_AUDIENCE || '').trim() || 'wq-ai-support',
   // Pages allowed to frame /embed (the main app). Unset in development = the local main app (:3333)
   // and the test host (`npm run embed:host`, :3334); unset in production = nobody.
   allowedParentOrigins: env.ALLOWED_PARENT_ORIGINS !== undefined

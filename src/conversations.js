@@ -1,17 +1,20 @@
 // Server-side conversation memory. The browser only holds an opaque conversation id; the
-// history lives here, bound to the session cookie that created it (a stolen id is useless
-// without the matching session). In AdonisJS: a Lucid model + table, or Redis.
+// history lives here, bound to its owner — the signed-in member, else the session cookie
+// (identity.js ownerKey). A stolen id is useless to anyone else. In AdonisJS: a Lucid model + table, or Redis.
 import crypto from 'node:crypto';
 import { config } from './config.js';
 
-const store = new Map(); // id → { id, sid, agent, turns: [{role, content}], usage: [], createdAt, updatedAt }
+const store = new Map(); // id → { id, owner, agent, turns: [{role, content}], createdAt, updatedAt }
 const TTL_MS = 6 * 3600e3;
 
-/** Get the caller's conversation or start a new one. Ids from another session are never reused. */
-export function getOrCreateConversation({ id, sid, agent }) {
+/**
+ * Get the caller's conversation or start a new one. An id owned by someone else — another session, or
+ * another member, or the same browser before/after signing in — is never reused.
+ */
+export function getOrCreateConversation({ id, owner, agent }) {
   const existing = id ? store.get(id) : null;
-  if (existing && existing.sid === sid && existing.agent === agent) return { conv: existing, isNew: false };
-  const conv = { id: crypto.randomUUID(), sid, agent, turns: [], createdAt: Date.now(), updatedAt: Date.now() };
+  if (existing && existing.owner === owner && existing.agent === agent) return { conv: existing, isNew: false };
+  const conv = { id: crypto.randomUUID(), owner, agent, turns: [], createdAt: Date.now(), updatedAt: Date.now() };
   store.set(conv.id, conv);
   return { conv, isNew: true };
 }
@@ -34,7 +37,7 @@ setInterval(() => {
   for (const [id, c] of store) if (c.updatedAt < cutoff) store.delete(id);
 }, 10 * 60e3).unref();
 
-export function getConversation(id, sid) {
+export function getConversation(id, owner) {
   const c = store.get(id);
-  return c && c.sid === sid ? c : null;
+  return c && c.owner === owner ? c : null;
 }

@@ -22,9 +22,9 @@ export function sessionMiddleware(req, res, next) {
   next();
 }
 
-/** OpenAI `safety_identifier`: a stable hash of the session id (never the raw id or any PII). */
-export function safetyIdentifier(sid) {
-  return crypto.createHash('sha256').update(`wq:${sid}`).digest('hex');
+/** `safety_identifier`: a stable hash of the owner key (member or session) — never the raw id or any PII. */
+export function safetyIdentifier(owner) {
+  return crypto.createHash('sha256').update(`wq:${owner}`).digest('hex');
 }
 
 // ---------- demo password gate ----------
@@ -51,11 +51,13 @@ export function setGateCookie(res) {
   res.cookie(COOKIE.gate, 'ok', { ...cookieBase(), maxAge: 7 * 864e5 });
 }
 
-/** Back Office "session": set when /backoffice is visited. In production this is the real auth session. */
+/** Demo Back Office "session": set when /backoffice is visited. Real members are identified by token (identity.js). */
 export function setBackofficeCookie(res) {
   res.cookie(COOKIE.backoffice, config.backofficeUser.distributor_id, { ...cookieBase(), maxAge: 864e5 });
 }
+/** The simulated member (Maria), only in demo mode — outside it a leftover cookie identifies nobody. */
 export function backofficePrincipal(req) {
+  if (!config.demoMode) return null;
   const id = req.signedCookies?.[COOKIE.backoffice];
   return id === config.backofficeUser.distributor_id ? { distributor_id: id } : null;
 }
@@ -98,9 +100,10 @@ function limiter(windowMs, limit, keyGenerator, message) {
   });
 }
 const byIp = (req) => `ip:${req.ip}`;
-const bySession = (req) => `sid:${req.sid}`;
+// The member when signed in (so clearing cookies doesn't reset their limit), else the browser session.
+const bySession = (req) => (req.member ? `member:${req.member.sub}` : `sid:${req.sid}`);
 
-/** Per-IP AND per-session limits on every AI endpoint: 20/min, 150/day (config.limits). */
+/** Per-IP AND per-person limits on every AI endpoint: 20/min, 150/day (config.limits). Run after `identify`. */
 export const aiRateLimit = [
   limiter(60_000, config.limits.aiPerMinute, byIp, 'Too many requests — please wait a minute.'),
   limiter(60_000, config.limits.aiPerMinute, bySession, 'Too many requests — please wait a minute.'),
