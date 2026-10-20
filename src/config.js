@@ -6,7 +6,11 @@ const env = process.env;
 
 export const config = {
   port: Number(env.PORT) || 3000,
-  openaiKey: env.OPENAI_API_KEY || '',
+  openrouterKey: env.OPENROUTER_API_KEY || '',
+  openrouterAppUrl: env.OPENROUTER_APP_URL || '',
+  openrouterAppName: env.OPENROUTER_APP_NAME || '',
+  openrouterDataCollection: env.OPENROUTER_DATA_COLLECTION === 'allow' ? 'allow' : 'deny',
+  openrouterZdr: env.OPENROUTER_ZDR === '1' || env.OPENROUTER_ZDR === 'true',
   mock: env.MOCK_OPENAI === '1' || env.MOCK_OPENAI === 'true',
   demoPassword: env.DEMO_PASSWORD || '',
   // A random secret is fine for local runs; set SESSION_SECRET in production so cookies survive restarts.
@@ -34,7 +38,7 @@ export const config = {
 };
 
 /**
- * Model combinations selectable from the cost inspector.
+ * Model combinations. Requests use DEFAULT_COMBO unless they pass a known combo key.
  * The browser only ever sends the combo KEY; the server resolves it here, so a client
  * can never pick an arbitrary (expensive) model.
  */

@@ -5,11 +5,13 @@
   "description": "WealthQuest Support Agent + Compensation Plan Agent prototype (Express + OpenAI Responses API)",
   "type": "module",
   "main": "server.js",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
-    "mock": "MOCK_OPENAI=1 DEMO_PASSWORD=demo node server.js",
+    "start": "node --env-file-if-exists=.env server.js",
+    "dev": "node --env-file-if-exists=.env --watch server.js",
+    "mock": "cross-env MOCK_OPENAI=1 DEMO_PASSWORD=demo node --env-file-if-exists=.env server.js",
     "test": "node --test test/*.test.js",
     "screenshots": "node scripts/screenshots.mjs"
   },
@@ -20,6 +22,7 @@
     "openai": "7.20.0"
   },
   "devDependencies": {
+    "cross-env": "^10.1.0",
     "playwright": "^1.55.0"
   }
 }

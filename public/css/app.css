@@ -1,7 +1,7 @@
 /* WealthQuest Support — prototype styles.
    Values are measured from the Figma frames (1440 desktop, 390 mobile). Sections:
    1 tokens · 2 base · 3 header · 4 buttons · 5 hero/toggle/question box · 6 accordion · 7 help CTA
-   8 markdown · 9 AI answer page · 10 chat · 11 article · 12 ticket page · 13 cost inspector
+   8 markdown · 9 AI answer page · 10 chat · 11 article · 12 ticket page
    14 back office · 15 login/404 · 16 mobile */
 
 /* ---------- 1. tokens ---------- */
@@ -377,49 +377,6 @@ a { color: var(--link); }
 .success .btn { margin-top: 22px; }
 .page-bottom { height: 67px; }
 
-/* ---------- 13. cost inspector (dev overlay, not part of the Figma design) ---------- */
-.cost-pill {
-  position: fixed; left: 16px; bottom: 16px; z-index: 60; height: 32px; padding: 0 12px 0 10px; border-radius: 999px;
-  display: inline-flex; align-items: center; gap: 6px; border: 1px solid #E3E3E3; background: rgba(255,255,255,.94);
-  backdrop-filter: blur(6px); color: #333; font: 600 12px/1 var(--f-body); box-shadow: 0 2px 10px rgba(0,0,0,.08);
-}
-.cost-pill b { font-weight: 700; color: var(--teal); }
-.cost-pill .eur { width: 18px; height: 18px; border-radius: 50%; background: var(--teal); color: #fff; display: grid; place-items: center; font-size: 11px; }
-.cost-panel {
-  position: fixed; left: 16px; bottom: 56px; z-index: 61; width: min(660px, calc(100vw - 32px)); max-height: min(78vh, 760px);
-  background: #fff; border: 1px solid #E6E6E6; border-radius: 14px; box-shadow: 0 16px 48px rgba(0,0,0,.16);
-  display: flex; flex-direction: column; font-size: 12.5px; line-height: 17px; color: var(--ink);
-}
-.cost-panel header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
-.cost-panel header h3 { margin: 0; font: 600 14px/1 var(--f-head); }
-.cost-panel header .tag { font-size: 11px; background: #F3F3F3; border-radius: 999px; padding: 3px 8px; color: var(--ink-2); }
-.cost-panel header .sp { flex: 1; }
-.cost-panel header button { border: 0; background: transparent; padding: 4px; color: #555; }
-.cost-panel header button svg { width: 16px; height: 16px; }
-.cost-body { overflow: auto; padding: 12px 14px 14px; }
-.cost-body h4 { margin: 14px 0 6px; font: 600 11px/1 var(--f-body); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
-.cost-body h4:first-child { margin-top: 0; }
-.cost-sel { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.cost-sel label { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--ink-2); }
-.cost-sel select { height: 32px; border: 1px solid var(--input-line); border-radius: 7px; padding: 0 8px; background: #fff; font-size: 12.5px; color: var(--ink); }
-.cost-sel .desc { font-size: 11px; color: var(--muted); }
-.ctable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-.ctable th, .ctable td { padding: 5px 6px; border-bottom: 1px solid #F1F1F1; text-align: right; white-space: nowrap; }
-.ctable th:first-child, .ctable td:first-child { text-align: left; }
-.ctable th { font-weight: 600; color: var(--ink-2); font-size: 11px; background: #FAFAFA; position: sticky; top: 0; }
-.ctable tr.tot td { font-weight: 700; border-bottom: 1px solid #E6E6E6; background: #FCFBF7; }
-.ctable td.m { color: var(--ink-2); font-size: 11.5px; }
-.cmsg { border: 1px solid #EFEFEF; border-radius: 10px; margin-bottom: 8px; overflow: auto; }
-.cmsg .q { padding: 6px 8px; font-size: 12px; color: var(--ink-2); background: #FAFAFA; border-bottom: 1px solid #F1F1F1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cmsg .q b { color: var(--ink); }
-.cost-empty { color: var(--muted); padding: 8px 0; }
-.cost-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.cost-summary div { background: #F8F8F8; border-radius: 8px; padding: 8px 10px; }
-.cost-summary span { display: block; font-size: 11px; color: var(--ink-2); }
-.cost-summary b { font-size: 14px; font-variant-numeric: tabular-nums; }
-.cost-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; color: var(--muted); font-size: 11px; }
-.cost-foot button { border: 1px solid var(--input-line); background: #fff; border-radius: 7px; padding: 5px 10px; font-size: 12px; }
-
 /* ---------- 14. back office (frame 11) ---------- */
 body.bo { background: #F4F4F4; --bo-side: 226px; }
 .bo-shell { display: grid; grid-template-columns: var(--bo-side) 1fr; min-height: 100vh; }
@@ -596,9 +553,6 @@ body.bo { background: #F4F4F4; --bo-side: 226px; }
   .article h1 { font-size: 27px; line-height: 32px; margin: 26px 0 24px; }
   .sidebar { position: static; margin-top: 24px; }
   .help-card { margin-top: 48px; }
-  .cost-pill { left: 10px; bottom: 10px; }
-  .cost-panel { left: 8px; right: 8px; width: auto; bottom: 50px; }
-  .cost-sel { grid-template-columns: 1fr; }
 }
 /* buttons inside rendered Markdown keep button styling */
 .md a.btn { color: #fff; text-decoration: none; }

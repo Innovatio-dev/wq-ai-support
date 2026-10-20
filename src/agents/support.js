@@ -4,7 +4,7 @@
 //   3. answerer (streams) answers only from those articles, or drafts a support ticket via a tool
 // In AdonisJS: app/services/support_agent_service.ts, called from SupportMessagesController.
 import { loadKnowledgeBases } from '../kb.js';
-import { streamResponse, createResponse, isFlagged } from '../openai.js';
+import { streamResponse, createResponse } from '../openai.js';
 import { prompt, usageEvent, parseJsonOutput, routerContext, historyMessages, escapeTagText } from './common.js';
 import { addTurn } from '../conversations.js';
 import { config } from '../config.js';
@@ -21,8 +21,9 @@ const ROUTE_SCHEMA = {
     paths: { type: 'array', items: { type: 'string' } }, // server keeps at most 3
     search_terms: { type: 'string' },
     reply_language: { type: 'string' },
+    flagged: { type: 'boolean' }, // moderation verdict (OpenRouter has no /moderations endpoint)
   },
-  required: ['intent', 'paths', 'search_terms', 'reply_language'],
+  required: ['intent', 'paths', 'search_terms', 'reply_language', 'flagged'],
 };
 
 /** The single function tool. Category enum is built from the KB so it can't drift from the help center. */
@@ -69,34 +70,32 @@ export async function runSupportTurn({ text, conv, combo, safetyId, surface, sse
   const history = conv.turns.slice(); // snapshot before adding this turn
   addTurn(conv, 'user', text);
 
-  // ---- 1. Router (+ free moderation in parallel) ----
+  // ---- 1. Router (its `flagged` field is the moderation check: OpenRouter has no moderation endpoint) ----
   sse.send('status', { text: 'Searching help articles…' });
   const t0 = performance.now();
   const routerInput = [
     { role: 'user', content: `${history.length ? `Conversation so far:\n${routerContext(history)}\n\n` : ''}Latest user message:\n${text}` },
   ];
-  const [flagged, routeRes] = await Promise.all([
-    isFlagged(text),
-    createResponse({
-      model: combo.router.model,
-      instructions: routerInstructions(),
-      input: routerInput,
-      reasoning: { effort: combo.router.effort },
-      text: { verbosity: 'low', format: { type: 'json_schema', name: 'support_route', schema: ROUTE_SCHEMA, strict: true } },
-      max_output_tokens: 300,
-      store: false,
-      safety_identifier: safetyId,
-    }),
-  ]);
+  const routeRes = await createResponse({
+    model: combo.router.model,
+    instructions: routerInstructions(),
+    input: routerInput,
+    reasoning: { effort: combo.router.effort },
+    text: { verbosity: 'low', format: { type: 'json_schema', name: 'support_route', schema: ROUTE_SCHEMA, strict: true } },
+    max_output_tokens: 300,
+    store: false,
+    safety_identifier: safetyId,
+    session_id: conv.id,
+  });
   sse.send('usage', usageEvent({ step: 'router', model: combo.router.model, effort: combo.router.effort, usage: routeRes.usage, startedAt: t0 }));
 
-  if (flagged) {
+  const route = parseJsonOutput(routeRes) || { intent: 'answer', paths: [], reply_language: 'English' };
+  if (route.flagged === true) {
     sse.send('delta', { text: REFUSAL_TEXT });
     addTurn(conv, 'assistant', REFUSAL_TEXT);
     return;
   }
 
-  const route = parseJsonOutput(routeRes) || { intent: 'answer', paths: [], reply_language: 'English' };
   // ---- 2. Allow-list: only paths present in index.md can be loaded ----
   const paths = kb.resolvePaths(route.paths, 3);
   const articles = paths.map((p) => ({ path: kb.get(p).path, title: kb.get(p).meta.title, text: kb.articleForModel(p) }));
@@ -129,6 +128,7 @@ export async function runSupportTurn({ text, conv, combo, safetyId, surface, sse
     max_output_tokens: 900,
     store: false,
     safety_identifier: safetyId,
+    session_id: conv.id,
   })) {
     if (sse.closed) break; // client went away: stop streaming (and stop paying for output)
     if (ev.type === 'text') {

@@ -1,10 +1,9 @@
 // "Search with AI" answer page (Figma frames 03/04 + loading state).
 // Streams the Support agent's answer; a follow-up question continues the SAME server-side
 // conversation in the chat view (/chat), per the client's request.
-import { $, icons, mountHeader, postStream, renderMarkdown, enterToSubmit, costStore, getCombo, store, mountCostInspector, ticketForm, ticketSubmittedText, escapeHtml, turnstileToken } from './common.js';
+import { $, icons, mountHeader, postStream, renderMarkdown, enterToSubmit, store, ticketForm, ticketSubmittedText, escapeHtml, turnstileToken } from './common.js';
 
 mountHeader();
-mountCostInspector({ agents: ['support'] });
 $('#back').innerHTML = icons.arrowLeft;
 $('#send').innerHTML = icons.arrowUp;
 $('#fu-send').innerHTML = icons.arrowUp;
@@ -36,22 +35,18 @@ async function ask(text) {
   $('#status').textContent = 'Working on your answer';
   $('#send').disabled = true;
 
-  const combo = getCombo('support');
-  const costId = costStore.startMessage({ agent: 'support', q: question, combo });
   let answer = '';
   let raf = 0;
   const paint = () => { raf = 0; $('#md').innerHTML = renderMarkdown(answer); $('#md').classList.add('cursor'); };
 
   const turnstile_token = await turnstileToken();
-  await postStream('/api/support/message', { text: question, surface: 'public', combo, turnstile_token }, (ev, data) => {
+  await postStream('/api/support/message', { text: question, surface: 'public', turnstile_token }, (ev, data) => {
     if (ev === 'status') {
-      if (data.conversation_id) { conversationId = data.conversation_id; costStore.setConversation(costId, conversationId); }
+      if (data.conversation_id) conversationId = data.conversation_id;
     } else if (ev === 'delta') {
       if (!answer) { $('#working').hidden = true; $('#answer').hidden = false; }
       answer += data.text;
       if (!raf) raf = requestAnimationFrame(paint);
-    } else if (ev === 'usage') {
-      costStore.addCall(costId, data);
     } else if (ev === 'ticket_draft') {
       showTicket(data, answer);
     } else if (ev === 'error') {

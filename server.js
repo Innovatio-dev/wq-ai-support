@@ -6,12 +6,12 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import { config, COMBOS, DEFAULT_COMBO, resolveCombo } from './src/config.js';
 import {
-  COOKIE, sessionMiddleware, demoGate, checkPassword, setGateCookie, setBackofficeCookie, backofficePrincipal,
+  sessionMiddleware, demoGate, checkPassword, setGateCookie, setBackofficeCookie, backofficePrincipal,
   requireBackoffice, sameOrigin, aiRateLimit, ticketRateLimit, budgetExceeded, budgetStatus, BUDGET_MESSAGE,
   validateText, cleanText, verifyTurnstile, securityHeaders, safetyIdentifier,
 } from './src/security.js';
 import { loadKnowledgeBases } from './src/kb.js';
-import { getClient, NO_KEY_MESSAGE } from './src/openai.js';
+import { getClient, hasKey, NO_KEY_MESSAGE } from './src/openai.js';
 import { openSse } from './src/sse.js';
 import { getOrCreateConversation, isFull } from './src/conversations.js';
 import { runSupportTurn } from './src/agents/support.js';
@@ -75,7 +75,8 @@ app.use('/mock/api/v1', mockApiRouter({ principalFromRequest: backofficePrincipa
 app.get('/api/config', (req, res) => {
   res.json({
     mock: config.mock,
-    has_key: config.mock || Boolean(config.openaiKey),
+    has_key: hasKey(),
+    provider: config.mock ? 'mock' : 'openrouter',
     combos: Object.fromEntries(Object.entries(COMBOS).map(([agent, t]) => [agent, Object.entries(t).map(([key, c]) => ({
       key, label: c.label, router: c.router, main: c.answer || c.agent,
     }))])),
@@ -119,8 +120,8 @@ function agentEndpoint(agent) {
     }
     if (isFull(conv)) return res.status(409).json({ error: 'conversation_full', message: 'This conversation is getting long. Please start a new one.' });
 
-    const comboKey = typeof body.combo === 'string' ? body.combo : req.cookies?.[`${COOKIE.combo}_${agent}`];
-    const combo = resolveCombo(agent, comboKey);
+    // Optional `combo` key from the client; unknown or missing keys resolve to the default (allow-list).
+    const combo = resolveCombo(agent, typeof body.combo === 'string' ? body.combo : null);
     const sse = openSse(res);
     sse.send('status', { text: 'Working on your answer', conversation_id: conv.id, combo: combo.key });
     const t0 = performance.now();
@@ -139,9 +140,12 @@ function agentEndpoint(agent) {
 }
 
 function friendlyError(e) {
-  if (e.status === 401) return 'The server\'s OpenAI API key was rejected. Please check OPENAI_API_KEY.';
+  if (e.status === 401) return 'AI provider key invalid: the server\'s OpenRouter API key was rejected. Please check OPENROUTER_API_KEY.';
+  if (e.status === 402) return 'AI credits exhausted. Please try again later.';
+  if (e.status === 403) return 'The AI request was blocked by the provider\'s guardrails.';
   if (e.status === 429) return 'The AI service is busy right now. Please try again in a moment.';
   if (e.status === 400) return 'The AI request was rejected. Please rephrase and try again.';
+  if (e.status >= 500) return 'The AI service is temporarily unavailable. Please try again in a moment.';
   return 'Something went wrong while generating the answer. Please try again.';
 }
 
@@ -177,6 +181,6 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
 });
 
 app.listen(config.port, () => {
-  const mode = config.mock ? 'MOCK_OPENAI (no real API calls)' : config.openaiKey ? 'live OpenAI' : 'NO OPENAI KEY (AI endpoints will return an error)';
+  const mode = config.mock ? 'MOCK_OPENAI (no real API calls)' : hasKey() ? 'live OpenRouter' : 'NO OPENROUTER KEY (AI endpoints will return an error)';
   console.log(`WealthQuest agents demo on http://localhost:${config.port} — ${mode}${config.demoPassword ? ', password gate ON' : ''}`);
 });

@@ -1,9 +1,8 @@
 // "Open a ticket" page. Attachments are validated client-side only (type, size, count); in this
 // prototype only their metadata is sent, never the files — and never to OpenAI.
-import { $, icons, mountHeader, getConfig, escapeHtml, mountCostInspector } from './common.js';
+import { $, icons, mountHeader, getConfig, escapeHtml } from './common.js';
 
 mountHeader();
-mountCostInspector({ agents: ['support'] });
 $('#cat-chev').outerHTML = icons.chevronDown.replace('<svg', '<svg class="sel-chev"');
 $('#browse').innerHTML = `${icons.upload} Upload file`;
 $('#check').innerHTML = icons.check;

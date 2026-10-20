@@ -7,7 +7,7 @@ import rateLimit from 'express-rate-limit';
 import { config } from './config.js';
 
 // ---------- cookies & session ----------
-export const COOKIE = { session: 'wq_sid', gate: 'wq_gate', backoffice: 'wq_bo', combo: 'wq_combo' };
+export const COOKIE = { session: 'wq_sid', gate: 'wq_gate', backoffice: 'wq_bo' };
 
 const cookieBase = () => ({ httpOnly: true, sameSite: 'lax', secure: config.isProduction, signed: true, path: '/' });
 
