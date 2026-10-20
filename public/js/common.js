@@ -263,7 +263,7 @@ export async function mountCostInspector({ agents = ['support'] } = {}) {
   const cfg = await getConfig().catch(() => null);
   const pill = el(`<button class="cost-pill" type="button" aria-expanded="false" aria-controls="cost-panel"><span class="eur">€</span>Cost <b data-total>€0.000000</b></button>`);
   const panel = el(`<section class="cost-panel" id="cost-panel" hidden aria-label="Cost inspector">
-    <header><h3>Cost inspector</h3><span class="tag">${cfg?.mock ? 'MOCK_OPENAI · fake usage' : 'live OpenAI usage'}</span><span class="sp"></span>
+    <header><h3>Cost inspector</h3><span class="tag">${cfg?.mock ? 'MOCK_OPENAI · fake usage' : 'live OpenRouter usage'}</span><span class="sp"></span>
       <button type="button" data-close aria-label="Close">${icons.x}</button></header>
     <div class="cost-body"></div></section>`);
   document.body.append(pill, panel);

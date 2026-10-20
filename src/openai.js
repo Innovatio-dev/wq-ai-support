@@ -1,12 +1,15 @@
-// OpenAI client factory + small helpers around the Responses API.
-// - Real mode: official SDK (openai@7.20.0), key read from env, never sent to the browser.
-// - MOCK_OPENAI=1: a deterministic fake client with the same surface (`responses.create`,
-//   `moderations.create`) that streams canned answers and returns realistic usage numbers,
-//   so the whole UI (including the cost inspector) can be tested without a key.
-// In AdonisJS this becomes app/services/openai_service.ts (+ a fake bound in tests via the IoC container).
+// LLM client factory + small helpers around the Responses API.
+// - Real mode: official SDK (openai@7.20.0) pointed at OpenRouter's OpenAI-compatible Responses API
+//   (see docs/openrouter-plan.md). The key is read from env and never sent to the browser.
+// - MOCK_OPENAI=1: a deterministic fake client with the same surface (`responses.create`) that streams
+//   canned answers and returns realistic usage numbers, so the whole UI (including the cost inspector)
+//   can be tested without a key.
+// In AdonisJS this becomes app/services/llm_service.ts (+ a fake bound in tests via the IoC container).
 import OpenAI from 'openai';
 import { config } from './config.js';
 import { loadKnowledgeBases, normalizePath } from './kb.js';
+
+export const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 
 let client = null;
 
@@ -14,19 +17,58 @@ let client = null;
 export function getClient() {
   if (client) return client;
   if (config.mock) client = createMockClient();
-  else if (config.openaiKey) client = new OpenAI({ apiKey: config.openaiKey, maxRetries: 1, timeout: 60_000 });
+  else if (config.openrouterKey) {
+    const defaultHeaders = {};
+    if (config.openrouterAppUrl) defaultHeaders['HTTP-Referer'] = config.openrouterAppUrl;
+    if (config.openrouterAppName) defaultHeaders['X-Title'] = config.openrouterAppName;
+    client = new OpenAI({ apiKey: config.openrouterKey, baseURL: OPENROUTER_BASE_URL, defaultHeaders, maxRetries: 1, timeout: 60_000 });
+  }
   return client;
 }
 
-export const NO_KEY_MESSAGE = 'Server has no OpenAI API key configured';
+/** True when AI calls can be made (mock, or an OpenRouter key is set). */
+export function hasKey() {
+  return config.mock || Boolean(config.openrouterKey);
+}
+
+export const NO_KEY_MESSAGE = 'Server has no OpenRouter API key configured';
+
+/** Model id as OpenRouter names it: `gpt-5.6-terra` → `openai/gpt-5.6-terra`. The mock keeps plain names. */
+export function providerModel(name, provider = activeProvider()) {
+  return provider === 'openrouter' && !name.includes('/') ? `openai/${name}` : name;
+}
+
+function activeProvider() {
+  return config.mock ? 'mock' : 'openrouter';
+}
+
+/**
+ * Adapt our request body for OpenRouter. Callers may pass `session_id` (the conversation id);
+ * OpenRouter uses it to pin a conversation to one upstream provider for cache hits. The mock gets neither.
+ */
+export function toProviderParams(params, {
+  provider = activeProvider(),
+  dataCollection = config.openrouterDataCollection,
+  zdr = config.openrouterZdr,
+} = {}) {
+  const { session_id: sessionId, ...rest } = params;
+  if (provider !== 'openrouter') return rest;
+  return {
+    ...rest,
+    model: providerModel(rest.model, provider),
+    provider: { data_collection: dataCollection, ...(zdr ? { zdr: true } : {}) },
+    ...(sessionId ? { session_id: sessionId } : {}),
+  };
+}
 
 /**
  * Stream a Responses API call and yield normalised events:
  *   { type: 'text', delta } | { type: 'item', item } | { type: 'completed', response }
+ * `response.incomplete` (e.g. max_output_tokens reached) is reported as completed so usage is still recorded.
  * Throws on `response.failed` / `error` events.
  */
 export async function* streamResponse(params) {
-  const stream = await getClient().responses.create({ ...params, stream: true });
+  const stream = await getClient().responses.create({ ...toProviderParams(params), stream: true });
   for await (const ev of stream) {
     switch (ev.type) {
       case 'response.output_text.delta':
@@ -36,12 +78,13 @@ export async function* streamResponse(params) {
         yield { type: 'item', item: ev.item };
         break;
       case 'response.completed':
+      case 'response.incomplete':
         yield { type: 'completed', response: ev.response };
         return;
       case 'response.failed':
-        throw new Error(ev.response?.error?.message || 'OpenAI response failed');
+        throw new Error(ev.response?.error?.message || 'OpenRouter response failed');
       case 'error':
-        throw new Error(ev.message || 'OpenAI stream error');
+        throw new Error(ev.message || ev.error?.message || 'OpenRouter stream error');
       default:
         break; // reasoning deltas, argument deltas etc. are not needed by the UI
     }
@@ -50,18 +93,7 @@ export async function* streamResponse(params) {
 
 /** Non-streaming call (router, structured output). */
 export async function createResponse(params) {
-  return getClient().responses.create({ ...params, stream: false });
-}
-
-/** Free moderation check; returns true when flagged. Fails open (logs) — it's an extra layer, not the gate. */
-export async function isFlagged(text) {
-  try {
-    const res = await getClient().moderations.create({ model: 'omni-moderation-latest', input: text });
-    return Boolean(res.results?.[0]?.flagged);
-  } catch (err) {
-    console.warn('[moderation] skipped:', err.message);
-    return false;
-  }
+  return getClient().responses.create({ ...toProviderParams(params), stream: false });
 }
 
 // =============================================================================================
@@ -92,6 +124,9 @@ function lastUserText(input) {
 const STOP = new Set('the a an to of and or i my me is it how do can what in on for with you your we our this that be are am not have has was'.split(' '));
 function words(s) { return String(s).toLowerCase().normalize('NFKD').replace(/[^\w\s]/g, ' ').split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w)); }
 
+// Test phrases the fake routers mark as `flagged` (the moderation check).
+const MOCK_FLAGGED = /\b(kill|bomb|weapons?)\b/i;
+
 /** Fake router: keyword overlap between the question and each article's title/summary/aliases. */
 function mockSupportRoute(text) {
   const kb = loadKnowledgeBases().support;
@@ -108,7 +143,7 @@ function mockSupportRoute(text) {
   if (/\b(ticket|human|agent|person)\b/.test(lower)) intent = 'ticket';
   else if (/^(hi|hello|hey)\b/.test(lower) && scored.length === 0) intent = 'greeting';
   else if (scored.length === 0) intent = 'clarify';
-  return { intent, paths: scored.slice(0, 2).map((x) => x.p), search_terms: [...q].slice(0, 5).join(' '), reply_language: 'en' };
+  return { intent, paths: scored.slice(0, 2).map((x) => x.p), search_terms: [...q].slice(0, 5).join(' '), reply_language: 'en', flagged: MOCK_FLAGGED.test(text) };
 }
 
 function mockCompRoute(text) {
@@ -121,7 +156,7 @@ function mockCompRoute(text) {
   if (/weak leg|leg|volume|bv/.test(t)) { pages.push('definitions-volume-bv-weak-leg', 'rank-determination'); intent = 'history'; data.add('performance'); }
   if (/generational|match/.test(t)) { pages.push('generational-match'); intent = 'explain_rule'; }
   if (!pages.length) { pages.push('overview-and-principles'); intent = 'other'; data.add('profile'); }
-  return { plan_pages: [...new Set(pages)].slice(0, 4), data_needed: [...data], intent };
+  return { plan_pages: [...new Set(pages)].slice(0, 4), data_needed: [...data], intent, flagged: MOCK_FLAGGED.test(text) };
 }
 
 /** Extract `<article path="...">body</article>` blocks from the developer message. */
@@ -224,11 +259,6 @@ function createMockClient() {
   const id = (p) => `${p}_mock_${Date.now().toString(36)}_${++n}`;
   return {
     _mock: true,
-    moderations: {
-      async create({ input }) {
-        return { results: [{ flagged: /\b(kill|bomb)\b/i.test(String(input)) }] };
-      },
-    },
     responses: {
       async create(params) {
         const fmt = params.text?.format;

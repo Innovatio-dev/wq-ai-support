@@ -12,6 +12,7 @@ Return JSON only, matching the schema:
 - `paths`: 0–3 article paths copied EXACTLY from the index below (the text inside `[[ ]]`, e.g. `account/logging-in/reset-or-change-password`). Order by relevance. Never invent a path. For `ticket` intent still include the most relevant article (it helps pre-fill the ticket category). For `greeting`/`out_of_scope` use [].
 - `search_terms`: 2–6 keywords summarising the need, in English.
 - `reply_language`: the language the user wrote in, as an English name (e.g. "English", "Slovenian", "Spanish").
+- `flagged`: `true` only when the message itself is harmful: threats or violence, self-harm, sexual content involving minors, hate or harassment, or a request for help with weapons, crime or fraud. Frustration, swearing at the product, or an off-topic question is NOT flagged (use `out_of_scope` for those). Otherwise `false`.
 
 # Rules
 - Match on meaning, not just words: use each line's summary and its "aka" phrasings.

@@ -36,7 +36,7 @@ if (!BASE) {
   const port = await freePort();
   BASE = `http://localhost:${port}`;
   server = spawn(process.execPath, ['server.js'], {
-    env: { ...process.env, MOCK_OPENAI: '1', DEMO_PASSWORD: PASSWORD, PORT: String(port), MOCK_WORD_DELAY_MS: '6', OPENAI_API_KEY: '' },
+    env: { ...process.env, MOCK_OPENAI: '1', DEMO_PASSWORD: PASSWORD, PORT: String(port), MOCK_WORD_DELAY_MS: '6', OPENROUTER_API_KEY: '' },
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   await new Promise((resolve, reject) => {

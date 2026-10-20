@@ -6,7 +6,7 @@
 //      anything missing (max 4 iterations)
 // In AdonisJS: app/services/comp_agent_service.ts, called from CompMessagesController.
 import { loadKnowledgeBases } from '../kb.js';
-import { streamResponse, createResponse, isFlagged } from '../openai.js';
+import { streamResponse, createResponse } from '../openai.js';
 import { prompt, usageEvent, parseJsonOutput, routerContext, historyMessages, escapeTagText } from './common.js';
 import { compToolDefinitions, runCompTool, TOOL_STATUS, dataPath } from '../tools/comp-tools.js';
 import { addTurn } from '../conversations.js';
@@ -21,8 +21,9 @@ const ROUTE_SCHEMA = {
     plan_pages: { type: 'array', items: { type: 'string' } },
     data_needed: { type: 'array', items: { type: 'string', enum: DATA_SETS } },
     intent: { type: 'string', enum: ['explain_rule', 'my_status', 'projection', 'history', 'other'] },
+    flagged: { type: 'boolean' }, // moderation verdict (OpenRouter has no /moderations endpoint)
   },
-  required: ['plan_pages', 'data_needed', 'intent'],
+  required: ['plan_pages', 'data_needed', 'intent', 'flagged'],
 };
 
 let ROUTER_INSTRUCTIONS = null;
@@ -39,29 +40,26 @@ export async function runCompTurn({ text, conv, combo, safetyId, principal, sse 
   const history = conv.turns.slice();
   addTurn(conv, 'user', text);
 
-  // ---- 1. Router (optional per combo) + moderation ----
+  // ---- 1. Router (optional per combo; its `flagged` field is the moderation check) ----
+  // Without a router (sol-only) the agent prompt's own refusal rules apply.
   let route = { plan_pages: [], data_needed: [], intent: 'other' };
   if (combo.router) {
     sse.send('status', { text: 'Reading the Compensation Plan…' });
     const t0 = performance.now();
-    const [flagged, res] = await Promise.all([
-      isFlagged(text),
-      createResponse({
-        model: combo.router.model,
-        instructions: routerInstructions(),
-        input: [{ role: 'user', content: `${history.length ? `Conversation so far:\n${routerContext(history)}\n\n` : ''}Latest user message:\n${text}` }],
-        reasoning: { effort: combo.router.effort },
-        text: { verbosity: 'low', format: { type: 'json_schema', name: 'comp_route', schema: ROUTE_SCHEMA, strict: true } },
-        max_output_tokens: 300,
-        store: false,
-        safety_identifier: safetyId,
-      }),
-    ]);
+    const res = await createResponse({
+      model: combo.router.model,
+      instructions: routerInstructions(),
+      input: [{ role: 'user', content: `${history.length ? `Conversation so far:\n${routerContext(history)}\n\n` : ''}Latest user message:\n${text}` }],
+      reasoning: { effort: combo.router.effort },
+      text: { verbosity: 'low', format: { type: 'json_schema', name: 'comp_route', schema: ROUTE_SCHEMA, strict: true } },
+      max_output_tokens: 300,
+      store: false,
+      safety_identifier: safetyId,
+      session_id: conv.id,
+    });
     sse.send('usage', usageEvent({ step: 'router', model: combo.router.model, effort: combo.router.effort, usage: res.usage, startedAt: t0 }));
-    if (flagged) return refuse(conv, sse);
     route = parseJsonOutput(res) || route;
-  } else if (await isFlagged(text)) {
-    return refuse(conv, sse);
+    if (route.flagged === true) return refuse(conv, sse);
   }
 
   // ---- 2. Load plan pages (allow-list) + prefetch member data in parallel ----
@@ -107,6 +105,7 @@ export async function runCompTurn({ text, conv, combo, safetyId, principal, sse 
       store: false,
       include: ['reasoning.encrypted_content'], // lets us replay reasoning items statelessly
       safety_identifier: safetyId,
+      session_id: conv.id,
     })) {
       if (sse.closed) return;
       if (ev.type === 'text') { answer += ev.delta; sse.send('delta', { text: ev.delta }); }

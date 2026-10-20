@@ -1,6 +1,6 @@
 # WealthQuest Support Agent + Compensation Plan Agent — prototype
 
-A working prototype of the WealthQuest help center (built to match the client's Figma frames) with two real OpenAI agents. Every AI answer shows exactly what it cost.
+A working prototype of the WealthQuest help center (built to match the client's Figma frames) with two real AI agents running OpenAI's GPT-5.6 models through [OpenRouter](https://openrouter.ai). Every AI answer shows exactly what it cost.
 
 - **Athena, Support Agent**: answers from the support knowledge base (39 Markdown articles), streams the answer, and when a person is needed it drafts a support ticket for the user to review and submit.
 - **Athena, Compensation Agent** (Back Office only): explains the Compensation Plan (21 plan pages) using the signed-in member's own numbers. It gets those numbers from a mock WealthQuest API and a deterministic plan calculator, and it follows the compliance rules for a direct-selling business.
@@ -27,11 +27,11 @@ Requires Node 22 or newer.
 npm install
 cp .env.example .env            # optional: edit it
 
-# 1) No OpenAI key needed: fake, deterministic streamed answers with realistic fake usage numbers
-MOCK_OPENAI=1 DEMO_PASSWORD=demo npm start     # → http://localhost:3000  (password: demo)
+# 1) No key needed: fake, deterministic streamed answers with realistic fake usage numbers
+npm run mock                                    # → http://localhost:3000  (password: demo)
 
-# 2) Real OpenAI
-OPENAI_API_KEY=sk-... DEMO_PASSWORD=demo npm start
+# 2) Real models through OpenRouter
+OPENROUTER_API_KEY=sk-or-... DEMO_PASSWORD=demo npm start
 
 npm test               # unit tests (node:test): plan calculator, KB allow-list, cost, security, markdown, mock API
 npm run screenshots    # Playwright: boots a mock server, runs every flow, saves docs/screenshots/*.png
@@ -39,14 +39,17 @@ npm run screenshots    # Playwright: boots a mock server, runs every flow, saves
 
 `npm run screenshots` fails if the browser logs any console error, and if any page scrolls sideways at 390 px width. It uses the Chromium at `/opt/pw-browsers` when present. Otherwise set `PLAYWRIGHT_CHROMIUM=/path/to/chrome` or run `npx playwright install chromium`.
 
-With no key and `MOCK_OPENAI` not set, the pages still load. The AI endpoints then return `Server has no OpenAI API key configured`, and the UI shows that message inline.
+With no key and `MOCK_OPENAI` not set, the pages still load. The AI endpoints then return `Server has no OpenRouter API key configured`, and the UI shows that message inline.
 
 ## Env vars
 
 | Var | Default | Purpose |
 |---|---|---|
-| `OPENAI_API_KEY` | – | Server-side only. |
-| `MOCK_OPENAI` | `0` | `1` turns on the fake OpenAI client: canned streamed answers (about 25 ms per word), real calculator outputs and fake usage numbers. |
+| `OPENROUTER_API_KEY` | – | Server-side only. |
+| `OPENROUTER_APP_URL` / `OPENROUTER_APP_NAME` | – | Optional `HTTP-Referer` / `X-Title` headers for app attribution in the OpenRouter dashboard. |
+| `OPENROUTER_DATA_COLLECTION` | `deny` | Sent as `provider.data_collection`: only providers that don't keep or train on the data. |
+| `OPENROUTER_ZDR` | `0` | `1` sends `provider.zdr: true` (zero-data-retention endpoints only). Check that OpenAI's endpoints on OpenRouter are ZDR first, or every request fails with "no endpoints". |
+| `MOCK_OPENAI` | `0` | `1` turns on the fake client (chosen before any provider): canned streamed answers (about 25 ms per word), real calculator outputs and fake usage numbers. |
 | `DEMO_PASSWORD` | – | Puts the whole demo behind a password page, which sets a signed HttpOnly cookie. Empty means no gate. |
 | `SESSION_SECRET` | random per boot | Signs the cookies. Set it in production, or every deploy logs everyone out. |
 | `DAILY_BUDGET_USD` | `5` | Global daily limit on AI spend, computed from real usage. Once it is reached, requests get a friendly refusal. |
@@ -72,7 +75,7 @@ ticket / backoffice pages                              rate limits (IP + session
                                                            ├─ POST /api/tickets ─► tickets.js (memory + data/tickets.jsonl)
                                                            ├─ GET  /api/kb/tree · /api/kb/article · /api/config
                                                            └─ /mock/api/v1/* ─► mock/wq-api.js  (403 for anyone else's id)
-                                  openai.js: official SDK (openai@7.20.0) or the MOCK client · cost.js + pricing.json
+                                  openai.js: official SDK (openai@7.20.0) → OpenRouter, or the MOCK client · cost.js + pricing.json
 prompts/*.md  (static instructions, kept byte-identical so prompt caching applies)
 kb/support, kb/compplan  (Obsidian vaults, copied in; index.md is each router's "table of contents")
 ```
@@ -82,7 +85,7 @@ kb/support, kb/compplan  (Obsidian vaults, copied in; index.md is each router's 
 `POST /api/support/message {conversation_id?, text, surface}` returns an SSE stream with these events: `status`, `delta`, `ticket_draft`, `usage`, `done`, `error`.
 
 1. **Guards.** Message length (1–2,000 characters), rate limits, daily budget, and a Turnstile check on the first message. Conversation history is kept on the server, keyed by a conversation id that is bound to the session cookie. It is capped at 40 messages.
-2. **Router.** `gpt-5.6-luna`, effort `none`, verbosity low, `max_output_tokens: 300`, structured output (`json_schema`, strict) returning `{intent, paths[], search_terms, reply_language}`. Its `instructions` are `prompts/support-router.md` plus the full `kb/support/index.md`. That static prefix of about 3.5k tokens is cached automatically. The input is only the last 4 turns (400 characters each) plus the new message. The free `omni-moderation-latest` check runs in parallel. If it flags the message, the user gets a polite refusal and the answer model is never called.
+2. **Router.** `gpt-5.6-luna`, effort `none`, verbosity low, `max_output_tokens: 300`, structured output (`json_schema`, strict) returning `{intent, paths[], search_terms, reply_language, flagged}`. Its `instructions` are `prompts/support-router.md` plus the full `kb/support/index.md`. That static prefix of about 3.5k tokens is cached automatically. The input is only the last 4 turns (400 characters each) plus the new message. `flagged` is the moderation check (OpenRouter has no moderation endpoint). If it is set, the user gets a polite refusal and the answer model is never called.
 3. **Allow-list.** The server keeps only paths that appear in `index.md` (at most 3) and loads those articles. Frontmatter is stripped except `title`, `cta` and `escalate_if`. A made-up or injected path is simply dropped.
 4. **Answerer.** Model and effort come from the selected combination (default `gpt-5.6-terra`, effort low). `max_output_tokens: 900`, streaming, `store: false`, `safety_identifier = sha256(session)`. The input is a developer message with `<article path="…">` blocks, the last 8 turns and the question. It has one strict tool, `create_support_ticket {category (enum built from the KB + "Something else"), subcategory|null, summary ≤80, description ≤600, first person}`.
 5. **Ticket draft, never an automatic ticket.** When the model calls the tool, the server validates the arguments and sends a `ticket_draft` event. The UI shows "We will get this sorted…" with the pre-filled form. A ticket exists only after the user presses **Submit** (`POST /api/tickets`), which returns a 7-digit number.
@@ -94,7 +97,7 @@ The Support prompt rules: answer only from the provided articles; link to `/help
 
 `POST /api/comp/message` is only available with the Back Office session cookie, which is set when `/backoffice` is visited. In production this is the real authenticated session. The signed-in member is fixed on the server (Maria Kovač, `WQ-100482`). **No tool takes a distributor id**, so the model cannot ask for someone else's data.
 
-1. **Router** (luna, effort none, JSON schema) returns `{plan_pages[] (≤4), data_needed[], intent}`. Its instructions are `prompts/comp-router.md` plus `kb/compplan/index.md`.
+1. **Router** (luna, effort none, JSON schema) returns `{plan_pages[] (≤4), data_needed[], intent, flagged}`. Its instructions are `prompts/comp-router.md` plus `kb/compplan/index.md`.
 2. **Prefetch.** The server loads the plan pages (allow-listed) and fetches the requested data sets **in parallel** from the mock API. This saves tool round trips, so answers are faster and cheaper.
 3. **Agent.** Default `gpt-5.6-sol`, effort low, streaming, `store: false` + `include: ["reasoning.encrypted_content"]`. Output items are replayed for the stateless tool loop, which runs at most 4 times. The input holds `<plan_page>` blocks and `<user_data source="GET /api/v1/…">` JSON blocks. The tools are all read-only and all act on the session's member:
    `get_my_profile`, `get_my_performance(period)`, `get_my_rank_status`, `get_my_commissions(from,to,type)`, `get_my_network_directs(mode)`, `calculate_rank_gap(target_rank)` (exact missing weak-leg BV, sponsored actives per leg, ranked directs and leadership lines, plus the §6.4 no-skipping check) and `project_sitb(days, rank|null)` (§9.3 arithmetic, 90/10 split, with the mandatory "illustration, not a projection (§21)" note). With the *Sol only* combination there is no router, and a `read_plan_pages` tool is added instead. The UI shows a status line such as "Checking your rank status…" while a tool runs.
@@ -121,6 +124,7 @@ Implemented: `GET /me`, `/distributors/:id/performance`, `/distributors/:id/prod
 ## Cost model
 
 - Prices: `src/pricing.json` (USD per 1M tokens, checked 2026-09-20). EUR uses the ECB rate of 2026-09-18 (0.8726).
+- The cost is `usage.cost`, which is what OpenRouter actually billed, so the daily budget tracks real spend. When it is missing (e.g. mock mode) it is computed from `pricing.json`.
 - `src/cost.js`: `fresh = input − cached − cache_write`; cost = fresh × input price + cached × cached price + cache_write × write price + output × output price. Reasoning tokens are already part of `output_tokens`.
 - Each model call sends a `usage` event, which records step, model, effort, latency, the token breakdown (input, cached, cache-write, output, reasoning), USD and EUR (6 decimals), and adds to the server's daily budget counter.
 - The inspector shows every call, a total per message and per session, and a projection table (average per query and per conversation × 100 / 1,000 / 10,000 / 100,000, in € and $). It also has the **model-combination selector**, stored in a cookie and checked against an allow-list on the server (`src/config.js`):
@@ -130,7 +134,8 @@ Implemented: `GET /me`, `/distributors/:id/performance`, `/distributors/:id/prod
 
 ## How the key is protected
 
-- `OPENAI_API_KEY` exists only on the server. The browser talks only to our own endpoints and never sees the key or a model name it could change.
+- `OPENROUTER_API_KEY` exists only on the server. The browser talks only to our own endpoints and never sees the key or a model name it could change. Set a credit limit on the OpenRouter key as a second kill switch next to `DAILY_BUDGET_USD`.
+- On OpenRouter every request carries `provider.data_collection: "deny"` (and optionally `zdr: true`), so only providers that don't keep or train on the data are used.
 - **Same-origin check** on every POST: the `Origin`, or failing that the `Referer`, must match `Host`. Cookies are `SameSite=Lax`, HttpOnly and signed.
 - **Rate limits** (`express-rate-limit`) per IP **and** per session on the AI endpoints: 20 per minute and 150 per day. Tickets have separate limits.
 - **Caps:** 2,000 characters of input, `max_output_tokens` on every call (300, 900 and 1,400), at most 4 tool iterations, at most 40 messages per conversation, and `DAILY_BUDGET_USD` as a global kill switch.
@@ -138,11 +143,11 @@ Implemented: `GET /me`, `/distributors/:id/performance`, `/distributors/:id/prod
 - **Knowledge-base reads** are allow-listed paths only, so a prompt-injected path cannot read files.
 - **Comp data:** the agent's endpoint requires the Back Office session, tools have no id parameter, and the mock API returns 403 for anyone else's id.
 - **Optional Cloudflare Turnstile** (`TURNSTILE_SECRET`), with the server calling `siteverify`.
-- `safety_identifier = sha256(session id)` on every OpenAI call; `store: false`; no personal data is sent beyond the question itself (and, in the Back Office, the member's own figures).
-- The optional free moderation check runs before the answer model.
+- `safety_identifier = sha256(session id)` on every model call (OpenRouter hashes it again before forwarding); `store: false`; no personal data is sent beyond the question itself (and, in the Back Office, the member's own figures).
+- Moderation runs before the answer model through the routers' `flagged` field. The *Sol only* combination has no router, so it relies on the agent prompt's own refusal rules.
 - **Security headers** are written by hand: CSP (self plus jsDelivr; Turnstile only when enabled; `frame-ancestors 'none'`), `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy`, and HSTS in production.
 - Model output is rendered by a small **safe Markdown renderer**: all text is escaped first, and links may only point to relative paths, `https:` or `mailto:`. It has its own unit tests.
-- Ticket attachments are checked in the browser only (jpg, png or pdf; up to 3 files of 10 MB each). Only their metadata reaches the server, and it never goes to OpenAI.
+- Ticket attachments are checked in the browser only (jpg, png or pdf; up to 3 files of 10 MB each). Only their metadata reaches the server, and it never goes to the model provider.
 
 ## Mapping to AdonisJS
 
@@ -165,7 +170,7 @@ Implemented: `GET /me`, `/distributors/:id/performance`, `/distributors/:id/prod
 
 1. Push this repo to GitHub.
 2. Railway: **New Project → Deploy from GitHub** → pick the repo. Railway detects Node automatically (Nixpacks/Railpack), runs `npm install`, and starts with `npm start`. `railway.json` sets the start command and the `/healthz` health check.
-3. Under **Variables**, set `OPENAI_API_KEY`, `DEMO_PASSWORD`, `SESSION_SECRET` (a long random string), `DAILY_BUDGET_USD`, and optionally `TURNSTILE_SECRET` and `TURNSTILE_SITE_KEY`. Railway provides `PORT`.
+3. Under **Variables**, set `OPENROUTER_API_KEY`, `DEMO_PASSWORD`, `SESSION_SECRET` (a long random string), `DAILY_BUDGET_USD`, and optionally `TURNSTILE_SECRET` and `TURNSTILE_SITE_KEY`. Railway provides `PORT`.
 4. Open the generated domain and log in with the demo password.
 
 ## Design notes (Figma fidelity)
