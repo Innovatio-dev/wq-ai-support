@@ -38,7 +38,7 @@ export const config = {
 };
 
 /**
- * Model combinations selectable from the cost inspector.
+ * Model combinations. Requests use DEFAULT_COMBO unless they pass a known combo key.
  * The browser only ever sends the combo KEY; the server resolves it here, so a client
  * can never pick an arbitrary (expensive) model.
  */

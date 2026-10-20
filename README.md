@@ -1,6 +1,6 @@
 # WealthQuest Support Agent + Compensation Plan Agent — prototype
 
-A working prototype of the WealthQuest help center (built to match the client's Figma frames) with two real AI agents running OpenAI's GPT-5.6 models through [OpenRouter](https://openrouter.ai). Every AI answer shows exactly what it cost.
+A working prototype of the WealthQuest help center (built to match the client's Figma frames) with two real AI agents running OpenAI's GPT-5.6 models through [OpenRouter](https://openrouter.ai). Every model call's cost is tracked against a daily budget.
 
 - **Athena, Support Agent**: answers from the support knowledge base (39 Markdown articles), streams the answer, and when a person is needed it drafts a support ticket for the user to review and submit.
 - **Athena, Compensation Agent** (Back Office only): explains the Compensation Plan (21 plan pages) using the signed-in member's own numbers. It gets those numbers from a mock WealthQuest API and a deterministic plan calculator, and it follows the compliance rules for a direct-selling business.
@@ -16,8 +16,6 @@ The code is meant to be read as a reference implementation for the production Ad
 | `/ticket` | Open-a-ticket form with client-side attachment checks | (no frame; same design language) |
 | `/backoffice` | Simulated logged-in Back Office for Maria Kovač: dashboard and floating Athena panel with Support and My earnings modes | 11 |
 | `/healthz` | Health check for Railway | – |
-
-A **"€ Cost" pill** in the bottom-left corner of every page opens the cost inspector. It is a developer overlay, not part of the Figma design. Add `?clean=1` to any URL to hide it.
 
 ## Run locally
 
@@ -64,7 +62,7 @@ Browser (vanilla JS, no build)                         Express 5 server (server.
 index / ai / chat / article /     ── fetch + SSE ──►  security.js  demo gate · session cookie · same-origin ·
 ticket / backoffice pages                              rate limits (IP + session) · budget guard · validation
   common.js  ChatView, SSE client,                         │
-             cost store + inspector                        ├─ POST /api/support/message ─► agents/support.js
+             ticket form                                   ├─ POST /api/support/message ─► agents/support.js
   markdown.js  safe renderer                               │        router (luna, JSON schema) ─► kb.js allow-list
                                                            │        answerer (stream, create_support_ticket tool)
                                                            ├─ POST /api/comp/message ────► agents/comp.js
@@ -126,8 +124,8 @@ Implemented: `GET /me`, `/distributors/:id/performance`, `/distributors/:id/prod
 - Prices: `src/pricing.json` (USD per 1M tokens, checked 2026-09-20). EUR uses the ECB rate of 2026-09-18 (0.8726).
 - The cost is `usage.cost`, which is what OpenRouter actually billed, so the daily budget tracks real spend. When it is missing (e.g. mock mode) it is computed from `pricing.json`.
 - `src/cost.js`: `fresh = input − cached − cache_write`; cost = fresh × input price + cached × cached price + cache_write × write price + output × output price. Reasoning tokens are already part of `output_tokens`.
-- Each model call sends a `usage` event, which records step, model, effort, latency, the token breakdown (input, cached, cache-write, output, reasoning), USD and EUR (6 decimals), and adds to the server's daily budget counter.
-- The inspector shows every call, a total per message and per session, and a projection table (average per query and per conversation × 100 / 1,000 / 10,000 / 100,000, in € and $). It also has the **model-combination selector**, stored in a cookie and checked against an allow-list on the server (`src/config.js`):
+- Each model call adds its cost to the server's daily budget counter and sends a `usage` SSE event (step, model, effort, latency, token breakdown, USD and EUR). The pages ignore it; it is there for API clients and debugging.
+- **Model combinations** are defined in `src/config.js`. Every request uses the default unless it passes a known `combo` key; unknown keys fall back to the default:
   - Support: *Luna → Terra* (default), *Luna → Luna (deep)*, *Luna → Luna (fast)*
   - Compensation: *Luna → Sol* (default), *Luna → Terra*, *Sol only*
 - Prompt caching: the static instructions (the prompts plus each KB `index.md`) come first and never change byte-for-byte, so repeat calls pay the cached price for that prefix.
@@ -188,5 +186,5 @@ Implemented: `GET /me`, `/distributors/:id/performance`, `/distributors/:id/prod
 - Conversations, tickets, the rate-limit counters and the daily budget are held in memory. They reset on restart, and multiple instances need Redis or a database.
 - The Back Office login is simulated: visiting `/backoffice` signs in Maria.
 - Mock-mode answers are canned. They show the flow and the costs, not answer quality.
-- The pages outside the Figma frames (ticket page, dashboard content, cost inspector) follow the same visual language but were not specified by the client.
+- The pages outside the Figma frames (ticket page, dashboard content) follow the same visual language but were not specified by the client.
 - Attachments are not uploaded (validation only).

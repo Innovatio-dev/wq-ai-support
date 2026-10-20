@@ -1,9 +1,8 @@
 // Help article page (Figma frames 05/06): question box on top (asks go to /ai), breadcrumb pills,
 // rendered article, CTA, related links, category sidebar and the "We're here to help" card.
-import { $, $$, icons, mountHeader, mountToggle, mountBasicSearch, enterToSubmit, getTree, renderMarkdown, escapeHtml, CATEGORY_ICON, mountCostInspector } from './common.js';
+import { $, $$, icons, mountHeader, mountToggle, mountBasicSearch, enterToSubmit, getTree, renderMarkdown, escapeHtml, CATEGORY_ICON } from './common.js';
 
 mountHeader();
-mountCostInspector({ agents: ['support'] });
 
 const path = decodeURIComponent(location.pathname.replace(/^\/help\//, '')).replace(/\/+$/, '');
 const q = $('#q');

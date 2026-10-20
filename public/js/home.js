@@ -1,8 +1,7 @@
 // Support home (Figma frames 01/02): AI question box or Basic search + "Browse help articles" accordion.
-import { $, $$, mountHeader, mountToggle, mountBasicSearch, enterToSubmit, getTree, icons, CATEGORY_ICON, escapeHtml, mountCostInspector } from './common.js';
+import { $, $$, mountHeader, mountToggle, mountBasicSearch, enterToSubmit, getTree, icons, CATEGORY_ICON, escapeHtml } from './common.js';
 
 mountHeader();
-mountCostInspector({ agents: ['support'] });
 
 const aiForm = $('#ai-form');
 const basic = $('#basic');

@@ -6,7 +6,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import { config, COMBOS, DEFAULT_COMBO, resolveCombo } from './src/config.js';
 import {
-  COOKIE, sessionMiddleware, demoGate, checkPassword, setGateCookie, setBackofficeCookie, backofficePrincipal,
+  sessionMiddleware, demoGate, checkPassword, setGateCookie, setBackofficeCookie, backofficePrincipal,
   requireBackoffice, sameOrigin, aiRateLimit, ticketRateLimit, budgetExceeded, budgetStatus, BUDGET_MESSAGE,
   validateText, cleanText, verifyTurnstile, securityHeaders, safetyIdentifier,
 } from './src/security.js';
@@ -120,8 +120,8 @@ function agentEndpoint(agent) {
     }
     if (isFull(conv)) return res.status(409).json({ error: 'conversation_full', message: 'This conversation is getting long. Please start a new one.' });
 
-    const comboKey = typeof body.combo === 'string' ? body.combo : req.cookies?.[`${COOKIE.combo}_${agent}`];
-    const combo = resolveCombo(agent, comboKey);
+    // Optional `combo` key from the client; unknown or missing keys resolve to the default (allow-list).
+    const combo = resolveCombo(agent, typeof body.combo === 'string' ? body.combo : null);
     const sse = openSse(res);
     sse.send('status', { text: 'Working on your answer', conversation_id: conv.id, combo: combo.key });
     const t0 = performance.now();

@@ -1,8 +1,7 @@
 // Back Office shell (Figma frame 11) + Maria's dashboard (from the mock WealthQuest API)
 // + floating Athena panel with two modes: Support agent and Compensation ("My earnings") agent.
-import { $, $$, icons, fleur, el, escapeHtml, ChatView, GREETING, COMP_GREETING, mountCostInspector } from './common.js';
+import { $, $$, icons, fleur, el, escapeHtml, ChatView, GREETING, COMP_GREETING } from './common.js';
 
-mountCostInspector({ agents: ['support', 'comp'] });
 
 // ---------- shell ----------
 $('#bo-logo').insertAdjacentHTML('afterbegin', fleur());

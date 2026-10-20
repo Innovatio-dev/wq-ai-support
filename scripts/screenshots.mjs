@@ -89,7 +89,7 @@ const M = { width: 390, height: 844 };
 try {
   console.log('Desktop 1440×900');
   let p = await newPage(D);
-  await p.goto('/?clean=1');
+  await p.goto('/');
   await p.waitForSelector('.acc-item');
   await shot(p, 'desktop-01-home');
   await shot(p, 'desktop-02-home-full', { fullPage: true });
@@ -103,7 +103,7 @@ try {
 
   // AI answer page: loading state then streamed answer.
   const Q = "I don't know how to change password, I checked everything and can't find the change password";
-  await captureLoading(p, `/ai?clean=1&q=${encodeURIComponent(Q)}`, 'desktop-03a-ai-loading');
+  await captureLoading(p, `/ai?q=${encodeURIComponent(Q)}`, 'desktop-03a-ai-loading');
   await answerDone(p);
   await shot(p, 'desktop-03-ai-answer');
   await shot(p, 'desktop-03b-ai-answer-full', { fullPage: true });
@@ -115,16 +115,16 @@ try {
   await shot(p, 'desktop-03c-followup-in-chat');
 
   // Article page.
-  await p.goto('/help/account/logging-in/reset-or-change-password?clean=1');
+  await p.goto('/help/account/logging-in/reset-or-change-password');
   await p.waitForSelector('#sidebar .side-cat');
   await shot(p, 'desktop-05-article-top');
   await p.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   await shot(p, 'desktop-06-article-bottom');
 
   // Chat: answer, ticket draft, submit.
-  await p.goto('/chat?clean=1');
+  await p.goto('/chat');
   await p.evaluate(() => sessionStorage.clear());
-  await p.goto('/chat?clean=1');
+  await p.goto('/chat');
   await p.fill('#first', 'Reset password');
   await p.press('#first', 'Enter');
   await chatIdle(p);
@@ -140,7 +140,7 @@ try {
   await shot(p, 'desktop-10-chat-ticket-submitted');
 
   // Ticket page.
-  await p.goto('/ticket?clean=1');
+  await p.goto('/ticket');
   await p.waitForFunction(() => document.querySelectorAll('#cat option').length > 2);
   await shot(p, 'desktop-12a-ticket-empty');
   await p.selectOption('#cat', 'Payments & billing');
@@ -151,9 +151,9 @@ try {
   await shot(p, 'desktop-12c-ticket-success');
 
   // Back Office + floating Athena (support), then comp mode.
-  await p.goto('/backoffice?clean=1');
+  await p.goto('/backoffice');
   await p.evaluate(() => sessionStorage.clear());
-  await p.goto('/backoffice?clean=1');
+  await p.goto('/backoffice');
   await p.waitForSelector('.card .rank-row');
   await shot(p, 'desktop-11a-backoffice-dashboard');
   await p.click('#launcher');
@@ -170,36 +170,29 @@ try {
   await p.press('#msg', 'Enter');
   await chatIdle(p);
   await shot(p, 'desktop-11d-backoffice-comp-sitb');
-
-  // Cost inspector (not in Figma; dev overlay).
-  await p.goto('/backoffice');
-  await p.waitForSelector('.cost-pill');
-  await p.click('.cost-pill');
-  await p.waitForSelector('.cost-panel:not([hidden]) .ctable');
-  await shot(p, 'desktop-13-cost-inspector');
   await p.context().close();
 
   console.log('Mobile 390×844');
   p = await newPage(M, { mobile: true });
-  await p.goto('/?clean=1');
+  await p.goto('/');
   await p.waitForSelector('.acc-item');
   await shot(p, 'mobile-01-home');
-  await captureLoading(p, `/ai?clean=1&q=${encodeURIComponent(Q)}`, 'mobile-03a-ai-loading');
+  await captureLoading(p, `/ai?q=${encodeURIComponent(Q)}`, 'mobile-03a-ai-loading');
   await answerDone(p);
   await shot(p, 'mobile-04-ai-answer');
-  await p.goto('/help/account/logging-in/reset-or-change-password?clean=1');
+  await p.goto('/help/account/logging-in/reset-or-change-password');
   await p.waitForSelector('#sidebar .side-cat');
   await shot(p, 'mobile-05-article');
-  await p.goto('/chat?clean=1');
+  await p.goto('/chat');
   await p.evaluate(() => sessionStorage.clear());
-  await p.goto('/chat?clean=1');
+  await p.goto('/chat');
   await p.fill('#first', 'Reset password');
   await p.press('#first', 'Enter');
   await chatIdle(p);
   await shot(p, 'mobile-07-chat');
-  await p.goto('/ticket?clean=1');
+  await p.goto('/ticket');
   await shot(p, 'mobile-12-ticket');
-  await p.goto('/backoffice?clean=1');
+  await p.goto('/backoffice');
   await p.waitForSelector('.card .rank-row');
   await shot(p, 'mobile-11a-backoffice');
   await p.click('#launcher');
@@ -207,9 +200,6 @@ try {
   await p.click('.suggestions button >> nth=1');
   await chatIdle(p);
   await shot(p, 'mobile-11-backoffice-comp');
-  await p.goto('/');
-  await p.click('.cost-pill');
-  await shot(p, 'mobile-13-cost-inspector');
   // No horizontal scroll at phone width on any page.
   for (const u of ['/', '/ai?q=hello', '/chat', '/help/account/logging-in/reset-or-change-password', '/ticket', '/backoffice']) {
     await p.goto(u);

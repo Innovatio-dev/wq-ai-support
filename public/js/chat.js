@@ -1,9 +1,8 @@
 // Athena chat (Figma frames 07–10): pill with the first question (× = new conversation),
 // chat card with streaming answers and the in-chat ticket form.
-import { $, icons, fleur, mountHeader, ChatView, GREETING, mountCostInspector } from './common.js';
+import { $, icons, fleur, mountHeader, ChatView, GREETING } from './common.js';
 
 mountHeader();
-mountCostInspector({ agents: ['support'] });
 $('#hdr-fleur').outerHTML = fleur({ gradient: false });
 $('#clear').innerHTML = icons.x;
 $('#send').innerHTML = icons.arrowUp;

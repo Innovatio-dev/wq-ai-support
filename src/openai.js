@@ -2,8 +2,8 @@
 // - Real mode: official SDK (openai@7.20.0) pointed at OpenRouter's OpenAI-compatible Responses API
 //   (see docs/openrouter-plan.md). The key is read from env and never sent to the browser.
 // - MOCK_OPENAI=1: a deterministic fake client with the same surface (`responses.create`) that streams
-//   canned answers and returns realistic usage numbers, so the whole UI (including the cost inspector)
-//   can be tested without a key.
+//   canned answers and returns realistic usage numbers, so the whole UI can be tested
+//   without a key.
 // In AdonisJS this becomes app/services/llm_service.ts (+ a fake bound in tests via the IoC container).
 import OpenAI from 'openai';
 import { config } from './config.js';
