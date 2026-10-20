@@ -161,8 +161,17 @@ export async function verifyTurnstile(token, ip) {
 }
 
 // ---------- security headers (written by hand, helmet-like) ----------
+/** Paths the main app may frame. Everything else refuses to be framed by anyone. */
+const EMBED_PATHS = new Set(['/embed']);
+
+/** `frame-ancestors` for a path: the allowed parent origins for embed pages, otherwise 'none'. */
+export function frameAncestors(path, origins = config.allowedParentOrigins) {
+  return EMBED_PATHS.has(path) && origins.length ? origins.join(' ') : "'none'";
+}
+
 export function securityHeaders(req, res, next) {
   const turnstile = config.turnstileSecret ? ' https://challenges.cloudflare.com' : '';
+  const ancestors = frameAncestors(req.path);
   res.set({
     'Content-Security-Policy': [
       "default-src 'self'",
@@ -172,17 +181,18 @@ export function securityHeaders(req, res, next) {
       "img-src 'self' data:",
       "connect-src 'self'",
       `frame-src 'self'${turnstile}`,
-      "frame-ancestors 'none'",
+      `frame-ancestors ${ancestors}`,
       "base-uri 'self'",
       "form-action 'self'",
       "object-src 'none'",
     ].join('; '),
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'X-Frame-Options': 'DENY',
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
     'Cross-Origin-Opener-Policy': 'same-origin',
   });
+  // X-Frame-Options can't express an allow-list; frame-ancestors (above) governs embeddable pages.
+  if (ancestors === "'none'") res.set('X-Frame-Options', 'DENY');
   if (config.isProduction) res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   next();
 }

@@ -13,7 +13,8 @@
     "dev": "node --env-file-if-exists=.env --watch server.js",
     "mock": "cross-env MOCK_OPENAI=1 DEMO_PASSWORD=demo node --env-file-if-exists=.env server.js",
     "test": "node --test test/*.test.js",
-    "screenshots": "node scripts/screenshots.mjs"
+    "screenshots": "node scripts/screenshots.mjs",
+    "embed:host": "node scripts/embed-host.mjs"
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",

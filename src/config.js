@@ -3,6 +3,19 @@
 import crypto from 'node:crypto';
 
 const env = process.env;
+const isProduction = env.NODE_ENV === 'production';
+
+/** Comma-separated origins → normalised `scheme://host[:port]` list; anything unparsable is dropped. */
+export function parseOrigins(value) {
+  return String(value || '').split(',').map((s) => s.trim()).filter(Boolean).flatMap((s) => {
+    try {
+      const { origin } = new URL(s);
+      return origin === 'null' ? [] : [origin];
+    } catch {
+      return [];
+    }
+  });
+}
 
 export const config = {
   port: Number(env.PORT) || 3000,
@@ -18,7 +31,12 @@ export const config = {
   dailyBudgetUsd: Number(env.DAILY_BUDGET_USD) || 5,
   turnstileSecret: env.TURNSTILE_SECRET || '',
   turnstileSiteKey: env.TURNSTILE_SITE_KEY || '',
-  isProduction: env.NODE_ENV === 'production',
+  isProduction,
+  // Pages allowed to frame /embed (the main app). Unset in development = the local main app (:3333)
+  // and the test host (`npm run embed:host`, :3334); unset in production = nobody.
+  allowedParentOrigins: env.ALLOWED_PARENT_ORIGINS !== undefined
+    ? parseOrigins(env.ALLOWED_PARENT_ORIGINS)
+    : isProduction ? [] : ['http://localhost:3333', 'http://localhost:3334'],
 
   limits: {
     maxInputChars: 2000,

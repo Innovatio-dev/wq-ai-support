@@ -15,6 +15,7 @@ The code is meant to be read as a reference implementation for the production Ad
 | `/help/<path>` | Help article: breadcrumb, body, CTA, related articles, category sidebar | 05, 06 |
 | `/ticket` | Open-a-ticket form with client-side attachment checks | (no frame; same design language) |
 | `/backoffice` | Simulated logged-in Back Office for Maria Kovač: dashboard and floating Athena panel with Support and My earnings modes | 11 |
+| `/embed?surface=guest\|member` | The chat panel the WealthQuest main app frames; only `ALLOWED_PARENT_ORIGINS` may frame it ([docs/embed-auth-plan.md](docs/embed-auth-plan.md)) | – |
 | `/healthz` | Health check for Railway | – |
 
 ## Run locally
@@ -33,6 +34,7 @@ OPENROUTER_API_KEY=sk-or-... DEMO_PASSWORD=demo npm start
 
 npm test               # unit tests (node:test): plan calculator, KB allow-list, cost, security, markdown, mock API
 npm run screenshots    # Playwright: boots a mock server, runs every flow, saves docs/screenshots/*.png
+npm run embed:host     # a stand-in for the main app on :3334 that frames /embed (guest; ?surface=member)
 ```
 
 `npm run screenshots` fails if the browser logs any console error, and if any page scrolls sideways at 390 px width. It uses the Chromium at `/opt/pw-browsers` when present. Otherwise set `PLAYWRIGHT_CHROMIUM=/path/to/chrome` or run `npx playwright install chromium`.
@@ -52,6 +54,7 @@ With no key and `MOCK_OPENAI` not set, the pages still load. The AI endpoints th
 | `SESSION_SECRET` | random per boot | Signs the cookies. Set it in production, or every deploy logs everyone out. |
 | `DAILY_BUDGET_USD` | `5` | Global daily limit on AI spend, computed from real usage. Once it is reached, requests get a friendly refusal. |
 | `TURNSTILE_SECRET` / `TURNSTILE_SITE_KEY` | – | Optional Cloudflare Turnstile. When set, the first message of each conversation must carry a token, which the server checks with `siteverify`. |
+| `ALLOWED_PARENT_ORIGINS` | dev: `http://localhost:3333,http://localhost:3334`; production: none | Comma-separated main-app origins allowed to frame `/embed`. Every other page refuses framing. |
 | `PORT` | `3000` | |
 
 ## Architecture

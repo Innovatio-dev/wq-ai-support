@@ -56,6 +56,7 @@ app.get('/', page('index.html'));
 app.get('/ai', page('ai.html'));
 app.get('/chat', page('chat.html'));
 app.get('/ticket', page('ticket.html'));
+app.get('/embed', page('embed.html')); // the chat panel the main app frames (?surface=guest|member)
 app.get('/help/{*path}', (req, res) => {
   const p = [].concat(req.params.path || []).join('/');
   if (!kb.support.has(p)) return res.status(404).sendFile(path.join(PUBLIC, '404.html'));
@@ -84,6 +85,7 @@ app.get('/api/config', (req, res) => {
     turnstile_site_key: config.turnstileSecret ? config.turnstileSiteKey : null,
     ticket_categories: kb.support.ticketCategories(),
     max_input_chars: config.limits.maxInputChars,
+    embed_parent_origins: config.allowedParentOrigins,
     budget: budgetStatus(),
   });
 });

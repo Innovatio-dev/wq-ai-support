@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Athena · WealthQuest Support</title>
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/urbanist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/montserrat-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/fonts/fonts.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script type="module" src="/js/embed.js"></script>
+</head>
+<body class="embed">
+  <!-- The chat panel the main app frames. The launcher button lives in the main app. -->
+  <section class="panel" id="panel" aria-label="Athena">
+    <div class="chat-header">
+      <span id="p-fleur"></span>
+      <div class="who"><span class="name">Athena</span><span class="role">Support Agent</span></div>
+      <button class="x" type="button" id="p-close" aria-label="Close chat"></button>
+    </div>
+    <div class="mode" id="mode" hidden><div class="toggle" role="tablist" aria-label="Agent">
+      <button type="button" role="tab" data-mode="support" aria-selected="true">Support</button>
+      <button type="button" role="tab" data-mode="comp" aria-selected="false" aria-disabled="true" disabled title="Coming soon">My earnings <span class="soon">Soon</span></button>
+    </div></div>
+    <div class="chat-body" id="body-support" aria-live="polite"></div>
+    <form class="chat-input" id="composer" autocomplete="off">
+      <div class="pill-input">
+        <label class="sr-only" for="msg">Message</label>
+        <input id="msg" maxlength="2000" placeholder="Ask a detailed question...">
+        <button class="round-btn" type="submit" aria-label="Send" id="send"></button>
+      </div>
+    </form>
+  </section>
+</body>
+</html>
