@@ -7,7 +7,6 @@ import { loadKnowledgeBases } from '../kb.js';
 import { streamResponse, createResponse } from '../openai.js';
 import { prompt, usageEvent, parseJsonOutput, routerContext, historyMessages, escapeTagText } from './common.js';
 import { addTurn } from '../conversations.js';
-import { config } from '../config.js';
 
 export const TICKET_DRAFT_TEXT = 'We will get this sorted.\n\nPlease provide details below so the team can follow up via email.';
 const REFUSAL_TEXT = "Sorry, I can't help with that. I can help with questions about your WealthQuest account, billing, membership and Back Office features.";
@@ -60,11 +59,11 @@ function routerInstructions() {
  * @param {string} p.text           validated user text
  * @param {object} p.conv           server-side conversation
  * @param {object} p.combo          resolved model combination
- * @param {string} p.safetyId       sha256(session id)
- * @param {'public'|'backoffice'} p.surface
+ * @param {string} p.safetyId       sha256(owner key)
+ * @param {{name:string|null, distributorId?:string}|null} p.user  the signed-in user, decided by the server; null = guest
  * @param {{send:Function, closed:boolean}} p.sse
  */
-export async function runSupportTurn({ text, conv, combo, safetyId, surface, sse }) {
+export async function runSupportTurn({ text, conv, combo, safetyId, user = null, sse }) {
   const kb = loadKnowledgeBases().support;
   const categories = kb.ticketCategories();
   const history = conv.turns.slice(); // snapshot before adding this turn
@@ -104,9 +103,9 @@ export async function runSupportTurn({ text, conv, combo, safetyId, surface, sse
   // ---- 3. Answerer ----
   const dev = [
     `Router intent: ${route.intent}. Reply language: ${route.reply_language || 'English'}.`,
-    surface === 'backoffice'
-      ? `Surface: Back Office. The user is signed in as ${config.backofficeUser.display_name} (distributor ${config.backofficeUser.distributor_id}); a ticket is attached to their account automatically, so never ask for their email.`
-      : 'Surface: public help center (user not signed in).',
+    user
+      ? `The user is signed in to WealthQuest${user.name ? ` as ${user.name}` : ''}${user.distributorId ? ` (distributor ${user.distributorId})` : ''}; a ticket is attached to their account automatically, so never ask for their email.`
+      : 'The user is not signed in (public help center or sign-in page).',
     articles.length
       ? articles.map((a) => `<article path="${a.path}">\n${escapeTagText(a.text)}\n</article>`).join('\n\n')
       : 'No help-center article matched this message.',
@@ -144,7 +143,7 @@ export async function runSupportTurn({ text, conv, combo, safetyId, surface, sse
 
   // ---- 4. Ticket draft: shown as a pre-filled form; created only when the user presses Submit ----
   if (ticketDraft) {
-    sse.send('ticket_draft', { ...ticketDraft, categories, intro: TICKET_DRAFT_TEXT, prefilled_user: surface === 'backoffice' ? config.backofficeUser.display_name : null });
+    sse.send('ticket_draft', { ...ticketDraft, categories, intro: TICKET_DRAFT_TEXT, prefilled_user: user ? user.name : null });
     addTurn(conv, 'assistant', `${answer ? `${answer}\n\n` : ''}${TICKET_DRAFT_TEXT}\n[A support ticket form was shown, pre-filled with category "${ticketDraft.category}".]`);
   } else {
     addTurn(conv, 'assistant', answer || '(no answer)');

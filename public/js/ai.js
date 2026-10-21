@@ -80,7 +80,7 @@ function showTicket(data, answerSoFar) {
   const holder = $('#ticket');
   holder.style.marginTop = '16px';
   holder.append(ticketForm({
-    draft: data, categories: data.categories, conversationId, surface: 'public',
+    draft: data, categories: data.categories, conversationId, surface: 'public', askEmail: true,
     onClose: (f) => f.remove(),
     onSubmitted: ({ ticket_number: n, form }) => {
       form.remove();

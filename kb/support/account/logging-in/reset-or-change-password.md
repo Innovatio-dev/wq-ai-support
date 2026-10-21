@@ -23,7 +23,7 @@ escalate_if:
 cta:
   label: "Change your password"
   url: "/backoffice/settings/security"
-updated: 2026-09-15
+updated: 2026-10-21
 ---
 
 # How to reset or change your WealthQuest password
@@ -39,7 +39,7 @@ You can change your password any time from your Back Office, or reset it from th
 5. Enter your current password, then your new password twice.
 6. Select **Save**.
 
-Your new password must be at least 12 characters and include a letter and a number. Other devices stay signed in; to sign them out, use **Log out of all devices** on the same tab.
+Your new password must be at least 8 characters and include a lowercase letter, a number and a special character. Other devices stay signed in; to sign them out, use **Log out of all devices** on the same tab.
 
 ## Forgot your password?
 

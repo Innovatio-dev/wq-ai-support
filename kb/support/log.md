@@ -46,3 +46,5 @@ Sources: Back Office navigation, Profile settings tabs, fee and KYC facts, Compe
 ## [2026-09-15] ingest | Suspicious login or hacked account
 
 ## [2026-09-15] lint | _lint.mjs passed (39 articles, 0 problems)
+
+## [2026-10-21] update | How to reset or change your WealthQuest password (password rule: 8 characters, lowercase letter, number, special character — matches the main app)

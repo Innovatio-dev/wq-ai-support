@@ -13,12 +13,14 @@
     "dev": "node --env-file-if-exists=.env --watch server.js",
     "mock": "cross-env MOCK_OPENAI=1 DEMO_PASSWORD=demo node --env-file-if-exists=.env server.js",
     "test": "node --test test/*.test.js",
-    "screenshots": "node scripts/screenshots.mjs"
+    "screenshots": "node scripts/screenshots.mjs",
+    "embed:host": "node scripts/embed-host.mjs"
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",
     "express": "^5.1.0",
     "express-rate-limit": "^7.5.0",
+    "jose": "6.2.12",
     "openai": "7.20.0"
   },
   "devDependencies": {

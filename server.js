@@ -14,9 +14,10 @@ import { loadKnowledgeBases } from './src/kb.js';
 import { getClient, hasKey, NO_KEY_MESSAGE } from './src/openai.js';
 import { openSse } from './src/sse.js';
 import { getOrCreateConversation, isFull } from './src/conversations.js';
+import { identify, ownerKey } from './src/identity.js';
 import { runSupportTurn } from './src/agents/support.js';
 import { runCompTurn } from './src/agents/comp.js';
-import { createTicket } from './src/tickets.js';
+import { createTicket, forwardTicket, ticketDestination, mainAppCategory } from './src/tickets.js';
 import { mockApiRouter, mockApiClient } from './src/mock/wq-api.js';
 
 const app = express();
@@ -56,20 +57,26 @@ app.get('/', page('index.html'));
 app.get('/ai', page('ai.html'));
 app.get('/chat', page('chat.html'));
 app.get('/ticket', page('ticket.html'));
+app.get('/embed', page('embed.html')); // the chat panel the main app frames (?surface=guest|member)
 app.get('/help/{*path}', (req, res) => {
   const p = [].concat(req.params.path || []).join('/');
   if (!kb.support.has(p)) return res.status(404).sendFile(path.join(PUBLIC, '404.html'));
   res.sendFile(path.join(PUBLIC, 'article.html'));
 });
-app.get('/backoffice', (req, res) => {
-  // Simulated login: visiting the Back Office "signs in" Maria. In production = real auth session.
-  setBackofficeCookie(res);
-  res.sendFile(path.join(PUBLIC, 'backoffice.html'));
-});
+if (config.demoMode) {
+  app.get('/backoffice', (req, res) => {
+    // Simulated login: visiting the demo Back Office "signs in" Maria.
+    setBackofficeCookie(res);
+    res.sendFile(path.join(PUBLIC, 'backoffice.html'));
+  });
+} else {
+  // Outside demo mode the demo Back Office's files aren't served either.
+  app.use(['/backoffice.html', '/js/backoffice.js'], (req, res) => res.status(404).sendFile(path.join(PUBLIC, '404.html')));
+}
 app.use(express.static(PUBLIC, { index: false, maxAge: config.isProduction ? '1h' : 0 }));
 
-// ---------- mock WealthQuest API ----------
-app.use('/mock/api/v1', mockApiRouter({ principalFromRequest: backofficePrincipal }));
+// ---------- mock WealthQuest API (demo only) ----------
+if (config.demoMode) app.use('/mock/api/v1', mockApiRouter({ principalFromRequest: backofficePrincipal }));
 
 // ---------- read-only APIs ----------
 app.get('/api/config', (req, res) => {
@@ -84,6 +91,11 @@ app.get('/api/config', (req, res) => {
     turnstile_site_key: config.turnstileSecret ? config.turnstileSiteKey : null,
     ticket_categories: kb.support.ticketCategories(),
     max_input_chars: config.limits.maxInputChars,
+    embed_parent_origins: config.allowedParentOrigins,
+    demo: config.demoMode,
+    // Attachments aren't forwarded to the main app yet, so the ticket page hides the picker then.
+    ticket_attachments: ticketDestination() !== 'main_app',
+    main_app_url: config.mainAppUrl || null,
     budget: budgetStatus(),
   });
 });
@@ -93,7 +105,7 @@ app.get('/api/kb/article', (req, res) => {
   if (!data) return res.status(404).json({ error: 'not_found' });
   res.json(data);
 });
-app.get('/api/backoffice/summary', requireBackoffice, async (req, res) => {
+if (config.demoMode) app.get('/api/backoffice/summary', requireBackoffice, async (req, res) => {
   const principal = backofficePrincipal(req);
   const api = mockApiClient(principal);
   const id = principal.distributor_id;
@@ -114,7 +126,8 @@ function agentEndpoint(agent) {
     if (!getClient()) return res.status(503).json({ error: 'no_key', message: NO_KEY_MESSAGE });
     if (budgetExceeded()) return res.status(429).json({ error: 'budget', message: BUDGET_MESSAGE });
 
-    const { conv, isNew } = getOrCreateConversation({ id: typeof body.conversation_id === 'string' ? body.conversation_id : null, sid: req.sid, agent });
+    const owner = ownerKey(req);
+    const { conv, isNew } = getOrCreateConversation({ id: typeof body.conversation_id === 'string' ? body.conversation_id : null, owner, agent });
     if (isNew && !(await verifyTurnstile(body.turnstile_token, req.ip))) {
       return res.status(403).json({ error: 'turnstile', message: 'Please complete the verification and try again.' });
     }
@@ -126,8 +139,8 @@ function agentEndpoint(agent) {
     sse.send('status', { text: 'Working on your answer', conversation_id: conv.id, combo: combo.key });
     const t0 = performance.now();
     try {
-      const args = { text: cleanText(body.text), conv, combo, safetyId: safetyIdentifier(req.sid), sse };
-      if (agent === 'support') await runSupportTurn({ ...args, surface: body.surface === 'backoffice' ? 'backoffice' : 'public' });
+      const args = { text: cleanText(body.text), conv, combo, safetyId: safetyIdentifier(owner), sse };
+      if (agent === 'support') await runSupportTurn({ ...args, user: signedInUser(req, body.surface) });
       else await runCompTurn({ ...args, principal: backofficePrincipal(req) });
       sse.send('done', { conversation_id: conv.id, total_ms: Math.round(performance.now() - t0) });
     } catch (e) {
@@ -137,6 +150,16 @@ function agentEndpoint(agent) {
       sse.end();
     }
   };
+}
+
+/**
+ * Who the agent may treat as signed in — decided here, never by the client: a verified member token, or
+ * (demo mode only) the simulated Back Office user when the request comes from the demo Back Office.
+ */
+function signedInUser(req, surface) {
+  if (req.member) return { name: req.member.name };
+  const demo = surface === 'backoffice' ? backofficePrincipal(req) : null;
+  return demo ? { name: config.backofficeUser.display_name, distributorId: demo.distributor_id } : null;
 }
 
 function friendlyError(e) {
@@ -149,21 +172,48 @@ function friendlyError(e) {
   return 'Something went wrong while generating the answer. Please try again.';
 }
 
-app.post('/api/support/message', aiRateLimit, agentEndpoint('support'));
-app.post('/api/comp/message', requireBackoffice, aiRateLimit, agentEndpoint('comp'));
+app.post('/api/support/message', identify, aiRateLimit, agentEndpoint('support'));
+// The Compensation agent runs on the mock API's demo data, so it exists only in demo mode
+// ("My earnings" is "Coming soon" in the main app).
+if (config.demoMode) app.post('/api/comp/message', requireBackoffice, aiRateLimit, agentEndpoint('comp'));
 
 // ---------- tickets ----------
-app.post('/api/tickets', ticketRateLimit, (req, res) => {
-  const { category, description, conversation_id: conversationId, attachments, surface } = req.body || {};
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+app.post('/api/tickets', identify, ticketRateLimit, async (req, res) => {
+  const { category, description, email: rawEmail, conversation_id: conversationId, attachments, surface } = req.body || {};
   const categories = kb.support.ticketCategories();
   if (typeof category !== 'string' || !categories.includes(category)) return res.status(400).json({ error: 'invalid_category', message: 'Please choose a category.' });
-  if (typeof description !== 'string' || description.trim().length < 5) return res.status(400).json({ error: 'invalid_description', message: 'Please describe the problem.' });
+  if (typeof description !== 'string' || description.trim().length < 10) return res.status(400).json({ error: 'invalid_description', message: 'Please describe the problem (at least 10 characters).' });
   if (description.length > config.limits.maxInputChars) return res.status(400).json({ error: 'too_long', message: 'Description is too long.' });
+
+  // Members (and the demo user) are known to the main app; a guest must leave a reply address.
+  const user = signedInUser(req, surface);
+  const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
+  if (!user && !(EMAIL_RE.test(email) && email.length <= 254)) return res.status(400).json({ error: 'invalid_email', message: 'Please enter the email address we should reply to.' });
+  const convRef = typeof conversationId === 'string' ? conversationId.slice(0, 64) : null;
+
+  if (ticketDestination() === 'main_app' && !backofficePrincipal(req)) {
+    try {
+      const reference = await forwardTicket({
+        category: mainAppCategory(kb.support.ticketTopCategory(category)), description: cleanText(description).trim(),
+        email: req.member ? null : email, memberToken: req.memberToken ?? null, conversationRef: convRef,
+        clientIp: req.ip, source: convRef ? 'ai_chat' : 'help_center',
+      });
+      return res.status(201).json({ ticket_number: reference });
+    } catch (err) {
+      return res.status(err.status || 502).json({ error: 'ticket_failed', message: err.message });
+    }
+  }
+  if (config.isProduction && !config.demoMode) {
+    // A ticket nobody will read is worse than a clear "not available": production must forward.
+    return res.status(503).json({ error: 'tickets_unavailable', message: 'Tickets can\'t be sent right now. Please email support@wealthquest.com.' });
+  }
   const files = Array.isArray(attachments) ? attachments.slice(0, 3).map((f) => ({ name: String(f?.name || '').slice(0, 120), size: Number(f?.size) || 0, type: String(f?.type || '').slice(0, 40) })) : [];
-  const bo = surface === 'backoffice' ? backofficePrincipal(req) : null;
   const ticket = createTicket({
-    category, description: cleanText(description), sid: req.sid, conversationId: typeof conversationId === 'string' ? conversationId : null,
-    user: bo ? { distributor_id: bo.distributor_id, name: config.backofficeUser.display_name } : null, surface: bo ? 'backoffice' : 'public', attachments: files,
+    category, description: cleanText(description), sid: req.sid, conversationId: convRef, email: user ? null : email,
+    user: user ? { member_sub: req.member?.sub ?? null, distributor_id: user.distributorId ?? null, name: user.name } : null,
+    surface: req.member ? 'member' : user ? 'backoffice' : 'public', attachments: files,
   });
   res.status(201).json({ ticket_number: ticket.ticket_number });
 });
@@ -182,5 +232,12 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
 
 app.listen(config.port, () => {
   const mode = config.mock ? 'MOCK_OPENAI (no real API calls)' : hasKey() ? 'live OpenRouter' : 'NO OPENROUTER KEY (AI endpoints will return an error)';
-  console.log(`WealthQuest agents demo on http://localhost:${config.port} — ${mode}${config.demoPassword ? ', password gate ON' : ''}`);
+  const extras = [
+    config.demoMode ? 'demo mode ON' : 'demo mode off',
+    config.demoPassword && 'password gate ON',
+    `member sign-in ${config.wqIssuer ? `via ${config.wqIssuer}` : 'off'}`,
+    `tickets → ${ticketDestination() === 'main_app' ? config.mainAppUrl : 'data/tickets.jsonl'}`,
+  ].filter(Boolean);
+  if (config.isProduction && ticketDestination() !== 'main_app') console.warn('[tickets] production without MAIN_APP_URL + AI_SUPPORT_SERVICE_SECRET: tickets are refused');
+  console.log(`WealthQuest agents on http://localhost:${config.port} — ${mode}, ${extras.join(', ')}`);
 });

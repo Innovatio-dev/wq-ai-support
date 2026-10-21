@@ -182,6 +182,14 @@ export class Vault {
     return out;
   }
 
+  /** A ticket category's top-level help-center category ("Logging in" → "Manage your account"). */
+  ticketTopCategory(name) {
+    for (const c of this.tree()) {
+      if (c.name === name || c.subcategories.some((s) => s.name === name)) return c.name;
+    }
+    return name; // "Something else"
+  }
+
   /** Render data for the article page. Markdown is rendered (and sanitised) in the browser. */
   articleRenderData(p) {
     const d = this.get(p);

@@ -31,8 +31,14 @@ export function mountHeader(target = $('#site-header')) {
   if (!target) return;
   target.outerHTML = `<header class="site-header">
     <a class="logo" href="/" aria-label="WealthQuest Support home">${fleur()}<span>WealthQuest</span></a>
-    <a class="btn btn-login" href="/backoffice">Log in</a>
+    <a class="btn btn-login" href="/" hidden>Log in</a>
   </header>`;
+  // "Log in" goes to the demo Back Office in demo mode, otherwise to the main app's sign-in page.
+  getConfig().then((cfg) => {
+    const href = cfg.demo ? '/backoffice' : cfg.main_app_url ? `${cfg.main_app_url}/login` : null;
+    const btn = $('.site-header .btn-login');
+    if (href && btn) { btn.href = href; btn.hidden = false; }
+  }).catch(() => {});
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -73,16 +79,36 @@ export async function turnstileToken() {
 // ---------------------------------------------------------------------------------------------
 // SSE over fetch (POST). Events: status | delta | ticket_draft | usage | done | error
 // ---------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------
+// Member sign-in for the embedded chat: a token source set by embed.js. Without one, requests go
+// out as a guest (help pages, demo Back Office).
+// ---------------------------------------------------------------------------------------------
+let authSource = null; // { getToken(): Promise<string>, refresh(): Promise<string> } — both reject when signed out
+export function setAuthSource(source) { authSource = source; }
+
+/** fetch() for our API: adds the member token when there is one, and retries once on an expired token. */
+export async function apiFetch(url, init = {}) {
+  const send = async (fresh) => {
+    const headers = { ...(init.headers || {}) };
+    if (authSource) headers.Authorization = `Bearer ${await (fresh ? authSource.refresh() : authSource.getToken())}`;
+    return fetch(url, { ...init, credentials: 'same-origin', headers });
+  };
+  const res = await send(false);
+  if (res.status !== 401 || !authSource) return res;
+  const body = await res.clone().json().catch(() => ({}));
+  return body.error === 'token_expired' ? send(true) : res;
+}
+
 export async function postStream(url, body, onEvent, { signal } = {}) {
   let res;
   try {
-    res = await fetch(url, {
-      method: 'POST', credentials: 'same-origin', signal,
+    res = await apiFetch(url, {
+      method: 'POST', signal,
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
       body: JSON.stringify(body),
     });
   } catch (err) {
-    if (err.name !== 'AbortError') onEvent('error', { message: 'Network error — please check your connection and try again.' });
+    if (err.name !== 'AbortError') onEvent('error', { message: err.userMessage || 'Network error — please check your connection and try again.' });
     return;
   }
   const type = res.headers.get('content-type') || '';
@@ -217,41 +243,51 @@ export function enterToSubmit(textarea, submit) {
 // ---------------------------------------------------------------------------------------------
 // In-chat ticket form (Figma frames 08/09)
 // ---------------------------------------------------------------------------------------------
-export function ticketForm({ draft = null, categories, conversationId = null, surface = 'public', onSubmitted, onClose }) {
+/** Loose shape check; the server (and the main app) validate for real. */
+export const looksLikeEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) && s.length <= 254;
+
+/**
+ * @param {boolean} [askEmail]  guests must leave a reply address; signed-in users are known to the main app
+ */
+export function ticketForm({ draft = null, categories, conversationId = null, surface = 'public', askEmail = false, onSubmitted, onClose }) {
   const selected = draft?.category && categories.includes(draft.category) ? draft.category : '';
+  const uid = Math.random().toString(36).slice(2, 8);
   const form = el(`<form class="ticket-form" novalidate>
-    <label for="tf-cat-${Date.now()}">I need help with...</label>
-    <div class="field"><select name="category" required>
+    <label for="tf-cat-${uid}">I need help with...</label>
+    <div class="field"><select name="category" id="tf-cat-${uid}" required>
       <option value=""${selected ? '' : ' selected'} disabled>Select</option>
       ${categories.map((c) => `<option${c === selected ? ' selected' : ''}>${escapeHtml(c)}</option>`).join('')}
     </select>${icons.chevronDown.replace('<svg', '<svg class="sel-chev"')}</div>
-    <label>Description of the problem</label>
-    <div class="field"><textarea name="description" maxlength="2000" placeholder="Please describe your issue in detail"></textarea></div>
+    <label for="tf-desc-${uid}">Description of the problem</label>
+    <div class="field"><textarea name="description" id="tf-desc-${uid}" maxlength="2000" placeholder="Please describe your issue in detail"></textarea></div>
+    ${askEmail ? `<label for="tf-email-${uid}">Your email (we'll reply here)</label>
+    <div class="field"><input type="email" name="email" id="tf-email-${uid}" maxlength="254" autocomplete="email" placeholder="name@example.com" required></div>` : ''}
     <div class="form-error" hidden></div>
     <div class="form-actions"><button type="button" class="btn btn-ghost" data-close>Close</button><button type="submit" class="btn">Submit</button></div>
   </form>`);
-  const id = `tf-cat-${Math.random().toString(36).slice(2, 8)}`;
-  $('select', form).id = id;
-  $('label', form).setAttribute('for', id);
   $('textarea', form).value = draft?.description || '';
   $('[data-close]', form).addEventListener('click', () => onClose?.(form));
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const category = $('select', form).value;
     const description = $('textarea', form).value.trim();
+    const email = askEmail ? $('input[name=email]', form).value.trim() : undefined;
     const err = $('.form-error', form);
-    if (!category || description.length < 5) {
+    const problem = !category ? 'Please choose what you need help with.'
+      : description.length < 10 ? 'Please describe the problem (at least 10 characters).'
+        : askEmail && !looksLikeEmail(email) ? 'Please enter the email address we should reply to.' : '';
+    if (problem) {
       err.hidden = false;
-      err.textContent = !category ? 'Please choose what you need help with.' : 'Please describe the problem.';
+      err.textContent = problem;
       return;
     }
     err.hidden = true;
     const btn = $('button[type=submit]', form);
     btn.disabled = true;
     try {
-      const r = await fetch('/api/tickets', {
-        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category, description, conversation_id: conversationId, surface }),
+      const r = await apiFetch('/api/tickets', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category, description, email, conversation_id: conversationId, surface }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.message || 'Could not submit the ticket.');
@@ -280,10 +316,11 @@ export class ChatView {
    * @param {'public'|'backoffice'} o.surface
    * @param {string} o.storageKey      sessionStorage key for persistence
    * @param {string} o.greeting
+   * @param {boolean} [o.askEmail]     ticket form asks for a reply address (guests); default: public surface
    * @param {Function} [o.onBusy]      (busy:boolean) → void
    */
-  constructor({ body, agent, surface = 'public', storageKey, greeting, onBusy, onChange }) {
-    Object.assign(this, { body, agent, surface, storageKey, greeting, onBusy, onChange });
+  constructor({ body, agent, surface = 'public', storageKey, greeting, askEmail = surface === 'public', onBusy, onChange }) {
+    Object.assign(this, { body, agent, surface, storageKey, greeting, askEmail, onBusy, onChange });
     this.state = store.get(storageKey, null) || { conversation_id: null, first_q: '', messages: [] };
     this.busy = false;
     this.controller = null;
@@ -394,7 +431,7 @@ export class ChatView {
     this.state.messages.push({ role: 'assistant', text: answerSoFar ? `${answerSoFar}\n\n${intro}` : intro, md: Boolean(answerSoFar) });
     this.persist();
     const form = ticketForm({
-      draft: data, categories: data.categories, conversationId: this.state.conversation_id, surface: this.surface,
+      draft: data, categories: data.categories, conversationId: this.state.conversation_id, surface: this.surface, askEmail: this.askEmail,
       onClose: (f) => { f.remove(); this.scroll(); },
       onSubmitted: ({ ticket_number: n, category, description, form: f }) => {
         f.remove();

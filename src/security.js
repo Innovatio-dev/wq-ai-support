@@ -22,9 +22,9 @@ export function sessionMiddleware(req, res, next) {
   next();
 }
 
-/** OpenAI `safety_identifier`: a stable hash of the session id (never the raw id or any PII). */
-export function safetyIdentifier(sid) {
-  return crypto.createHash('sha256').update(`wq:${sid}`).digest('hex');
+/** `safety_identifier`: a stable hash of the owner key (member or session) — never the raw id or any PII. */
+export function safetyIdentifier(owner) {
+  return crypto.createHash('sha256').update(`wq:${owner}`).digest('hex');
 }
 
 // ---------- demo password gate ----------
@@ -51,11 +51,13 @@ export function setGateCookie(res) {
   res.cookie(COOKIE.gate, 'ok', { ...cookieBase(), maxAge: 7 * 864e5 });
 }
 
-/** Back Office "session": set when /backoffice is visited. In production this is the real auth session. */
+/** Demo Back Office "session": set when /backoffice is visited. Real members are identified by token (identity.js). */
 export function setBackofficeCookie(res) {
   res.cookie(COOKIE.backoffice, config.backofficeUser.distributor_id, { ...cookieBase(), maxAge: 864e5 });
 }
+/** The simulated member (Maria), only in demo mode — outside it a leftover cookie identifies nobody. */
 export function backofficePrincipal(req) {
+  if (!config.demoMode) return null;
   const id = req.signedCookies?.[COOKIE.backoffice];
   return id === config.backofficeUser.distributor_id ? { distributor_id: id } : null;
 }
@@ -98,9 +100,10 @@ function limiter(windowMs, limit, keyGenerator, message) {
   });
 }
 const byIp = (req) => `ip:${req.ip}`;
-const bySession = (req) => `sid:${req.sid}`;
+// The member when signed in (so clearing cookies doesn't reset their limit), else the browser session.
+const bySession = (req) => (req.member ? `member:${req.member.sub}` : `sid:${req.sid}`);
 
-/** Per-IP AND per-session limits on every AI endpoint: 20/min, 150/day (config.limits). */
+/** Per-IP AND per-person limits on every AI endpoint: 20/min, 150/day (config.limits). Run after `identify`. */
 export const aiRateLimit = [
   limiter(60_000, config.limits.aiPerMinute, byIp, 'Too many requests — please wait a minute.'),
   limiter(60_000, config.limits.aiPerMinute, bySession, 'Too many requests — please wait a minute.'),
@@ -161,8 +164,17 @@ export async function verifyTurnstile(token, ip) {
 }
 
 // ---------- security headers (written by hand, helmet-like) ----------
+/** Paths the main app may frame. Everything else refuses to be framed by anyone. */
+const EMBED_PATHS = new Set(['/embed']);
+
+/** `frame-ancestors` for a path: the allowed parent origins for embed pages, otherwise 'none'. */
+export function frameAncestors(path, origins = config.allowedParentOrigins) {
+  return EMBED_PATHS.has(path) && origins.length ? origins.join(' ') : "'none'";
+}
+
 export function securityHeaders(req, res, next) {
   const turnstile = config.turnstileSecret ? ' https://challenges.cloudflare.com' : '';
+  const ancestors = frameAncestors(req.path);
   res.set({
     'Content-Security-Policy': [
       "default-src 'self'",
@@ -172,17 +184,18 @@ export function securityHeaders(req, res, next) {
       "img-src 'self' data:",
       "connect-src 'self'",
       `frame-src 'self'${turnstile}`,
-      "frame-ancestors 'none'",
+      `frame-ancestors ${ancestors}`,
       "base-uri 'self'",
       "form-action 'self'",
       "object-src 'none'",
     ].join('; '),
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'X-Frame-Options': 'DENY',
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
     'Cross-Origin-Opener-Policy': 'same-origin',
   });
+  // X-Frame-Options can't express an allow-list; frame-ancestors (above) governs embeddable pages.
+  if (ancestors === "'none'") res.set('X-Frame-Options', 'DENY');
   if (config.isProduction) res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   next();
 }
