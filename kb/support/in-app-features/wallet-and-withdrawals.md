@@ -21,7 +21,7 @@ escalate_if:
   - "Wallet shows a Negative Balance the member doesn't understand"
 cta:
   label: "Open Wallet"
-  url: "/backoffice/settings/wallet"
+  url: "/wallet"
 updated: 2026-09-15
 ---
 

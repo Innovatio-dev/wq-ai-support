@@ -16,8 +16,8 @@ escalate_if:
   - "a device reappears in the Devices list after being signed out"
   - "member was logged out unexpectedly and sees a login they don't recognize"
 cta:
-  label: "Manage devices"
-  url: "/backoffice/settings/devices"
+  label: "Security settings"
+  url: "/settings?tab=security"
 updated: 2026-09-15
 ---
 

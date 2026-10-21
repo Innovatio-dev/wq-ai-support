@@ -19,7 +19,7 @@ escalate_if:
   - "member asks to move someone to a different position (placements can't be changed)"
 cta:
   label: "Open Binary tree"
-  url: "/backoffice/binary-tree"
+  url: "/binary"
 updated: 2026-09-15
 ---
 

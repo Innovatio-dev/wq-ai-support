@@ -17,7 +17,7 @@ escalate_if:
   - "a settings tab is missing or shows an error for the member"
 cta:
   label: "Open Profile settings"
-  url: "/backoffice/settings/general"
+  url: "/settings?tab=general"
 updated: 2026-09-15
 ---
 

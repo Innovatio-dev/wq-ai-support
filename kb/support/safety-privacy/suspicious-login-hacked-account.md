@@ -20,7 +20,7 @@ escalate_if:
   - "member shared a password or 2FA code with someone claiming to be WealthQuest"
 cta:
   label: "Secure my account"
-  url: "/backoffice/settings/security"
+  url: "/settings?tab=security"
 updated: 2026-09-15
 ---
 

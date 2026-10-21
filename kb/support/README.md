@@ -40,7 +40,7 @@ escalate_if:                            # when the agent must offer a support ti
   - "account locked after 5 failed attempts and still locked after 30 minutes"
 cta:                                    # optional; or `cta: null`
   label: "Change your password"
-  url: "/backoffice/settings/security"
+  url: "/settings?tab=security"
 updated: 2026-09-15                     # YYYY-MM-DD, bump on every edit
 ---
 ```

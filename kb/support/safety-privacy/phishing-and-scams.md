@@ -18,7 +18,7 @@ escalate_if:
   - "member reports someone impersonating WealthQuest staff or selling Gold Points"
 cta:
   label: "Report to support"
-  url: "/backoffice/settings/support"
+  url: "/settings?tab=support"
 updated: 2026-09-15
 ---
 

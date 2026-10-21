@@ -19,7 +19,7 @@ escalate_if:
   - "member was charged but the account still shows Paused"
 cta:
   label: "Update payment method"
-  url: "/backoffice/settings/billing"
+  url: "/settings?tab=billing"
 updated: 2026-09-15
 ---
 

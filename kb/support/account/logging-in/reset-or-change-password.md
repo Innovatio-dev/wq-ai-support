@@ -22,7 +22,7 @@ escalate_if:
   - "member suspects someone else changed their password"
 cta:
   label: "Change your password"
-  url: "/backoffice/settings/security"
+  url: "/settings?tab=security"
 updated: 2026-10-21
 ---
 

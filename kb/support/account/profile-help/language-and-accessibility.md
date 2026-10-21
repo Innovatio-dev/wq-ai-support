@@ -17,8 +17,8 @@ escalate_if:
   - "part of the Back Office stays in the wrong language after switching"
   - "member reports a screen-reader or keyboard navigation barrier"
 cta:
-  label: "Accessibility settings"
-  url: "/backoffice/settings/accessibility"
+  label: "Open Settings"
+  url: "/settings?tab=general"
 updated: 2026-09-15
 ---
 

@@ -18,7 +18,7 @@ escalate_if:
   - "member believes volume was removed incorrectly"
 cta:
   label: "Open Rank Progress"
-  url: "/backoffice/rank-progress"
+  url: "/rank-progress"
 updated: 2026-09-15
 ---
 

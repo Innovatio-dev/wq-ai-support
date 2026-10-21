@@ -10,10 +10,10 @@ For DevOps. Covers this repo (`wq-ai-support`) and the settings it needs in the 
 ## Two environments
 One instance per environment, each on its own subdomain:
 
-| | Main app | This service (example names, your choice) |
+| | Main app | This service |
 |---|---|---|
-| Staging | `https://app-staging.wealthquest.com` | `https://support-staging.wealthquest.com` |
-| Production | `https://app.wealthquest.com` | `https://support.wealthquest.com` |
+| Staging | `https://app-staging.wealthquest.com` | a staging name under `wealthquest.com` (your choice) |
+| Production | `https://app.wealthquest.com` | `https://help.wealthquest.com` |
 
 **The one hard requirement:** this service's subdomain must be under the same parent domain as the main app (`*.wealthquest.com`). Otherwise the browser treats the iframe's cookies as third-party and blocks them, and the chat breaks.
 
@@ -58,7 +58,7 @@ One instance per environment, each on its own subdomain:
 
 | Variable | Value | Secret? | Notes |
 |---|---|---|---|
-| `AI_SUPPORT_ORIGIN` | this service's URL for that environment, e.g. `https://support.wealthquest.com` | | Without it there is no chat button. Also allows the iframe in the main app's security policy. |
+| `AI_SUPPORT_ORIGIN` | this service's URL for that environment, e.g. `https://help.wealthquest.com` | | Without it there is no chat button. Also allows the iframe in the main app's security policy. |
 | `AI_SUPPORT_SERVICE_SECRET` | the same value as this service's | **yes** | Without it the main app refuses chat tickets. |
 | `SSO_SIGNING_KEY`, `SSO_SUBJECT_SALT` | already set for WealthVentures sign-in | **yes** | Must be set, or members get no chat button. Don't change them. |
 

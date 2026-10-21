@@ -19,7 +19,7 @@ escalate_if:
   - "email was changed without the member's knowledge"
 cta:
   label: "Edit contact details"
-  url: "/backoffice/settings/general"
+  url: "/settings?tab=general"
 updated: 2026-09-15
 ---
 

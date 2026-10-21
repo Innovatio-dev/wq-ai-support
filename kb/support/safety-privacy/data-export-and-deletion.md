@@ -19,7 +19,7 @@ escalate_if:
   - "member asks about data held by Sumsub or PayQuicker"
 cta:
   label: "Privacy Policy"
-  url: "https://www.wealthquest.com/legal/privacy-policy"
+  url: "/privacy-policy"
 updated: 2026-09-15
 ---
 

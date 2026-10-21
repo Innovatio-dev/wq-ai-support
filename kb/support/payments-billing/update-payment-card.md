@@ -18,7 +18,7 @@ escalate_if:
   - "member sees a card on file they did not add"
 cta:
   label: "Update payment method"
-  url: "/backoffice/settings/billing"
+  url: "/settings?tab=billing"
 updated: 2026-09-15
 ---
 

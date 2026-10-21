@@ -21,7 +21,7 @@ escalate_if:
   - "member believes someone else changed their email or password"
 cta:
   label: "Reset password"
-  url: "/login/forgot-password"
+  url: "/forgot-password"
 updated: 2026-09-15
 ---
 

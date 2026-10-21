@@ -20,7 +20,7 @@ escalate_if:
   - "several team members report the same outage"
 cta:
   label: "Contact support"
-  url: "/backoffice/settings/support"
+  url: "/settings?tab=support"
 updated: 2026-09-15
 ---
 

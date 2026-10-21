@@ -18,7 +18,7 @@ escalate_if:
   - "member needs company name or tax ID changed on an already issued invoice"
 cta:
   label: "Open invoices"
-  url: "/backoffice/billing"
+  url: "/settings?tab=billing"
 updated: 2026-09-15
 ---
 

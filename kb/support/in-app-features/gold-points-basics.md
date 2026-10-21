@@ -20,7 +20,7 @@ escalate_if:
   - "Reward Gold Points were forfeited although the member reactivated within 90 days"
 cta:
   label: "View Gold Points"
-  url: "/backoffice/settings/wallet"
+  url: "/gp-rewards"
 updated: 2026-09-15
 ---
 

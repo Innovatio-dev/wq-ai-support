@@ -20,7 +20,7 @@ escalate_if:
   - "Disable account button is greyed out"
 cta:
   label: "Disable account"
-  url: "/backoffice/settings/general"
+  url: "/settings?tab=general"
 updated: 2026-09-15
 ---
 
