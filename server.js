@@ -33,7 +33,9 @@ app.use(express.json({ limit: '32kb' }));
 app.use(express.urlencoded({ extended: false, limit: '4kb' }));
 
 // ---------- health (no gate) ----------
-app.get('/healthz', (req, res) => res.json({ ok: true, mock: config.mock, uptime_s: Math.round(process.uptime()) }));
+app.get('/healthz', (req, res) => res.json({
+  ok: true, mock: config.mock, uptime_s: Math.round(process.uptime()), commit: process.env.APP_COMMIT || null,
+}));
 
 // ---------- demo password gate ----------
 app.get('/login', (req, res) => {

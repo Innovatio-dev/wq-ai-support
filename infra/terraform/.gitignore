@@ -1,0 +1,26 @@
+# Provider binaries and module cache, re-created by `terraform init`.
+.terraform/
+
+# State lives in S3 (see backend.tf) and is never committed.
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+
+# Saved plans: binary, short-lived, may contain sensitive values.
+tfplan
+*.tfplan
+
+# Local overrides. Nothing here needs a tfvars file; secrets are in SSM.
+*.auto.tfvars
+*.auto.tfvars.json
+terraform.tfvars
+terraform.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+crash.log
+crash.*.log
+
+# NOT ignored: .terraform.lock.hcl, so every machine resolves the same providers.
