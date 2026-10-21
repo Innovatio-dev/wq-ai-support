@@ -19,7 +19,7 @@ escalate_if:
   - "member wants a refund as well as cancellation"
 cta:
   label: "Manage subscription"
-  url: "/backoffice/billing"
+  url: "/settings?tab=billing"
 updated: 2026-09-15
 ---
 

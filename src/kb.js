@@ -6,6 +6,15 @@
 // In AdonisJS this becomes app/services/knowledge_base_service.ts (a singleton loaded at boot).
 import fs from 'node:fs';
 import path from 'node:path';
+import { config } from './config.js';
+
+/**
+ * A CTA's address. Paths (`/settings?tab=security`) are pages in the main app, so they get MAIN_APP_URL
+ * in front; on this site they would 404. Without MAIN_APP_URL (local dev) the path is kept as it is.
+ */
+export function ctaHref(url, mainAppUrl = config.mainAppUrl) {
+  return url.startsWith('/') && mainAppUrl ? `${mainAppUrl}${url}` : url;
+}
 
 /**
  * Parse `---` frontmatter. Supports: scalars (quoted or bare), null, block lists (`  - item`)
@@ -138,7 +147,7 @@ export class Vault {
     if (Array.isArray(m.escalate_if) && m.escalate_if.length) {
       head.push('escalate_if:', ...m.escalate_if.map((x) => `  - ${x}`));
     }
-    if (m.cta && m.cta.label) head.push(`cta: ${m.cta.label} (${m.cta.url})`);
+    if (m.cta && m.cta.label) head.push(`cta: ${m.cta.label} (${ctaHref(m.cta.url)})`);
     return `${head.join('\n')}\n\n${d.body.trim()}`;
   }
 
@@ -210,7 +219,7 @@ export class Vault {
       category_slug: d.path.split('/')[0],
       subcategory: d.meta.subcategory || null,
       summary: d.meta.summary,
-      cta: d.meta.cta && d.meta.cta.label ? { label: d.meta.cta.label, url: d.meta.cta.url } : null,
+      cta: d.meta.cta && d.meta.cta.label ? { label: d.meta.cta.label, url: ctaHref(d.meta.cta.url) } : null,
       related,
       updated: d.meta.updated,
       body_markdown: body,

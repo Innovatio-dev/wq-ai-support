@@ -1,7 +1,7 @@
 // Knowledge base: frontmatter parsing, tree, and the path allow-list that stops the model reading arbitrary files.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadKnowledgeBases, parseFrontmatter, normalizePath } from '../src/kb.js';
+import { loadKnowledgeBases, parseFrontmatter, normalizePath, ctaHref } from '../src/kb.js';
 
 const kb = loadKnowledgeBases();
 
@@ -74,4 +74,17 @@ test('article render data: H1 and Related section removed, wikilinks become /hel
   assert.equal(a.cta.label, 'Change your password');
   const g = kb.support.articleRenderData('membership/compensation-plan-guide');
   assert.doesNotMatch(g.body_markdown, /\[\[/);
+});
+
+test('CTA paths point at the main app; full https links are kept', () => {
+  assert.equal(ctaHref('/settings?tab=security', 'https://app.wealthquest.com'), 'https://app.wealthquest.com/settings?tab=security');
+  assert.equal(ctaHref('https://www.wealthquest.com/legal/income-disclosure', 'https://app.wealthquest.com'), 'https://www.wealthquest.com/legal/income-disclosure');
+  assert.equal(ctaHref('/settings?tab=security', ''), '/settings?tab=security');
+});
+
+test('no article CTA points at the demo Back Office (it 404s in production)', () => {
+  for (const p of kb.support.paths) {
+    const url = kb.support.get(p).meta.cta?.url;
+    if (url) assert.match(url, /^(\/(?!backoffice)|https:\/\/)/, `${p}: ${url}`);
+  }
 });

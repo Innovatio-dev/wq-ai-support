@@ -19,7 +19,7 @@ escalate_if:
   - "member asks for a personalised income estimate or projection"
 cta:
   label: "Read the Compensation Plan"
-  url: "https://www.wealthquest.com/legal/compensation-plan"
+  url: "/compensation-plan"
 updated: 2026-09-15
 ---
 

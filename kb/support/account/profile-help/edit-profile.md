@@ -19,7 +19,7 @@ escalate_if:
   - "profile photo was rejected and member disagrees"
 cta:
   label: "Edit profile"
-  url: "/backoffice/settings/general"
+  url: "/settings?tab=general"
 updated: 2026-09-15
 ---
 

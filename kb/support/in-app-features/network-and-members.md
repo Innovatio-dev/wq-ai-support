@@ -18,7 +18,7 @@ escalate_if:
   - "member count differs between Network and Members for more than 24 hours"
 cta:
   label: "Open Network"
-  url: "/backoffice/network"
+  url: "/direct-network"
 updated: 2026-09-15
 ---
 

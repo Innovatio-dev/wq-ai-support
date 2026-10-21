@@ -18,7 +18,7 @@ escalate_if:
   - "no reply to a ticket after 24 hours"
 cta:
   label: "Contact support"
-  url: "/backoffice/settings/support"
+  url: "/settings?tab=support"
 updated: 2026-09-15
 ---
 

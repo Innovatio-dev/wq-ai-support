@@ -18,7 +18,7 @@ escalate_if:
   - "the link opens an error page"
 cta:
   label: "Open Referral links"
-  url: "/backoffice/referral-links"
+  url: "/referral"
 updated: 2026-09-15
 ---
 

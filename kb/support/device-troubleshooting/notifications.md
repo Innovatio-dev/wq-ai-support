@@ -17,7 +17,7 @@ escalate_if:
   - "member stopped receiving security or payout emails after checking spam and settings"
 cta:
   label: "Notification settings"
-  url: "/backoffice/settings/general#notifications"
+  url: "/settings?tab=notifications"
 updated: 2026-09-15
 ---
 

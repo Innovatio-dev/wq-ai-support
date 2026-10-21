@@ -17,8 +17,8 @@ escalate_if:
   - "an unknown device keeps reappearing after logging it out and changing the password"
   - "Devices list shows activity from a country the member has never been to"
 cta:
-  label: "Open Devices"
-  url: "/backoffice/settings/devices"
+  label: "Security settings"
+  url: "/settings?tab=security"
 updated: 2026-09-15
 ---
 

@@ -20,7 +20,7 @@ escalate_if:
   - "member has been Applicant for more than 25 days"
 cta:
   label: "See my membership"
-  url: "/backoffice/memberships"
+  url: "/membership"
 updated: 2026-09-15
 ---
 

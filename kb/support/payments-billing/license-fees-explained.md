@@ -20,7 +20,7 @@ escalate_if:
   - "member disputes a charge they do not recognize"
 cta:
   label: "View billing"
-  url: "/backoffice/billing"
+  url: "/settings?tab=billing"
 updated: 2026-09-15
 ---
 

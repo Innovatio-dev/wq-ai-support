@@ -19,8 +19,8 @@ escalate_if:
   - "member accepted the Product Appendix but it still shows as not accepted"
   - "member asks whether a specific buyer counts as a Verified/Independent Customer"
 cta:
-  label: "Accept Product Appendix"
-  url: "/backoffice/products"
+  label: "Open Membership"
+  url: "/membership"
 updated: 2026-09-15
 ---
 

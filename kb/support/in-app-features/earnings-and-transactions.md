@@ -19,7 +19,7 @@ escalate_if:
   - "member disputes a reversal"
 cta:
   label: "Open Earnings"
-  url: "/backoffice/earnings"
+  url: "/earnings"
 updated: 2026-09-15
 ---
 

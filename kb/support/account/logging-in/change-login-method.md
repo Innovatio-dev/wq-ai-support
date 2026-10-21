@@ -19,7 +19,7 @@ escalate_if:
   - "member wants to merge two WealthQuest accounts (only one account per person is allowed)"
 cta:
   label: "Open Security settings"
-  url: "/backoffice/settings/security"
+  url: "/settings?tab=security"
 updated: 2026-09-15
 ---
 

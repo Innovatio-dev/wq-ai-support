@@ -20,7 +20,7 @@ escalate_if:
   - "application was declined after 30 days in Applicant status"
 cta:
   label: "Contact support"
-  url: "/backoffice/settings/support"
+  url: "/settings?tab=support"
 updated: 2026-09-15
 ---
 

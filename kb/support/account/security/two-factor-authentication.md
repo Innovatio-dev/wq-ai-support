@@ -19,7 +19,7 @@ escalate_if:
   - "member did not turn on 2FA but is being asked for a code"
 cta:
   label: "Turn on 2FA"
-  url: "/backoffice/settings/security"
+  url: "/settings?tab=security"
 updated: 2026-09-15
 ---
 

@@ -33,7 +33,9 @@ async function load() {
   if (a.cta) {
     const cta = document.createElement('p');
     cta.className = 'cta';
-    cta.innerHTML = `<a class="btn" href="${a.cta.url.startsWith('/') ? escapeHtml(a.cta.url) : '#'}">${escapeHtml(a.cta.label)} ${icons.arrowRight}</a>`;
+    // The server has already put MAIN_APP_URL in front of main-app paths.
+    const href = /^(\/|https?:\/\/)/.test(a.cta.url) ? a.cta.url : '#';
+    cta.innerHTML = `<a class="btn" href="${escapeHtml(href)}">${escapeHtml(a.cta.label)} ${icons.arrowRight}</a>`;
     const h2s = $$('h2', body);
     if (h2s[1]) body.insertBefore(cta, h2s[1]); else body.append(cta);
   }

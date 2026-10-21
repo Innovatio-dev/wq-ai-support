@@ -20,7 +20,7 @@ escalate_if:
   - "member wants to change a sponsor or placement after enrollment"
 cta:
   label: "Enroll member"
-  url: "/backoffice/enroll"
+  url: "/dashboard"
 updated: 2026-09-15
 ---
 

@@ -18,7 +18,7 @@ escalate_if:
   - "member thinks the lost phone was stolen and is still logged in"
 cta:
   label: "Security settings"
-  url: "/backoffice/settings/security"
+  url: "/settings?tab=security"
 updated: 2026-09-15
 ---
 

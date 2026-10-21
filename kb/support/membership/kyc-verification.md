@@ -21,7 +21,7 @@ escalate_if:
   - "member is told their identity is already verified on another account"
 cta:
   label: "Continue verification"
-  url: "/backoffice/memberships"
+  url: "/membership"
 updated: 2026-09-15
 ---
 
