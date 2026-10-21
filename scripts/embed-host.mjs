@@ -2,7 +2,8 @@
 //   · the launcher + panel (the reference for <AiSupportLauncher>) and the postMessage token handshake
 //   · GET  /ai/session-token        a 10-minute EdDSA token for the signed-in user (here: a cookie, alice|bob)
 //   · GET  /.well-known/jwks.json   the public key the AI server verifies tokens with
-//   · POST /internal/ai/tickets     signed tickets from the AI server (HMAC + the member's token)
+//   · POST /internal/ai/tickets     signed tickets from the AI server (HMAC + the member's token); text only:
+//                                   tickets with files (multipart, docs/embed-auth-plan.md §6.1) need the real main app
 //
 //   npm run embed:host → http://localhost:3334
 // Run the AI server with:  WQ_ISSUER=http://localhost:3334  MAIN_APP_URL=http://localhost:3334

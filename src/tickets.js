@@ -61,10 +61,55 @@ export function mainAppCategory(topCategory) {
   return topCategory === 'Something else' ? SOMETHING_ELSE_CATEGORY : topCategory;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Attachments: the main app's own limits (3 files, 10 MB each, jpg/png/pdf)
+// ---------------------------------------------------------------------------------------------
+export const ATTACHMENT_LIMITS = { maxFiles: 3, maxBytes: 10 * 1024 * 1024 };
+
+// What a file must start with, whatever its name says: a renamed .exe isn't a .pdf.
+const ATTACHMENT_KINDS = [
+  { exts: ['jpg', 'jpeg'], type: 'image/jpeg', magic: [0xff, 0xd8, 0xff] },
+  { exts: ['png'], type: 'image/png', magic: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },
+  { exts: ['pdf'], type: 'application/pdf', magic: [0x25, 0x50, 0x44, 0x46, 0x2d] }, // %PDF-
+];
+
 /**
- * The request signature the main app checks: hex HMAC-SHA256 over "<timestamp>.<raw body>" with the
- * shared secret. The timestamp is in the header too, so a captured request can't be replayed later
- * (the main app refuses anything older than 5 minutes) and the body can't be edited.
+ * An uploaded file, checked: `{ name, type, buffer }`, or null when its extension or its first bytes
+ * aren't jpg / png / pdf. The type comes from the content, never from the browser.
+ */
+export function checkAttachment(originalName, buffer) {
+  // Strip any path and control characters; the main app stores it under a random key anyway.
+  const name = String(originalName || '').split(/[/\\]/).pop().replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 120);
+  const ext = /\.([a-z0-9]+)$/i.exec(name)?.[1]?.toLowerCase();
+  const kind = ATTACHMENT_KINDS.find((k) => k.exts.includes(ext));
+  if (!name || !kind || !Buffer.isBuffer(buffer) || buffer.length === 0 || buffer.length > ATTACHMENT_LIMITS.maxBytes) return null;
+  if (!kind.magic.every((byte, i) => buffer[i] === byte)) return null;
+  return { name, type: kind.type, buffer };
+}
+
+/**
+ * The JSON the signature covers. Files can't be signed inside a multipart body, so the payload lists each
+ * one's name, type, size and SHA-256, and the main app re-hashes what it receives: a swapped or edited
+ * file fails like an edited description.
+ */
+export function ticketPayload({ category, description, email, memberToken, conversationRef, clientIp, source, attachments = [] }) {
+  return JSON.stringify({
+    category, description, email: email ?? null, member_token: memberToken ?? null,
+    conversation_ref: conversationRef ?? null, client_ip: clientIp, source,
+    ...(attachments.length ? {
+      attachments: attachments.map((a) => ({
+        name: a.name, type: a.type, size: a.buffer.length,
+        sha256: crypto.createHash('sha256').update(a.buffer).digest('hex'),
+      })),
+    } : {}),
+  });
+}
+
+/**
+ * The request signature the main app checks: hex HMAC-SHA256 over "<timestamp>.<payload>" with the
+ * shared secret. The payload is the JSON body, or the `payload` field when files are attached. The
+ * timestamp is in the header too, so a captured request can't be replayed later (the main app refuses
+ * anything older than 5 minutes, and each signature once) and the payload can't be edited.
  */
 export function signTicketRequest(rawBody, timestamp, secret = config.aiServiceSecret) {
   return crypto.createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('hex');
@@ -87,25 +132,32 @@ export class TicketForwardError extends Error {
  * @param {string|null} t.conversationRef
  * @param {string} t.clientIp        the member's IP, for the main app's per-person cooldown
  * @param {'ai_chat'|'help_center'} t.source
+ * @param {{name: string, type: string, buffer: Buffer}[]} [t.attachments] checked files (checkAttachment)
  */
-export async function forwardTicket({ category, description, email, memberToken, conversationRef, clientIp, source }) {
-  const raw = JSON.stringify({
-    category, description, email: email ?? null, member_token: memberToken ?? null,
-    conversation_ref: conversationRef ?? null, client_ip: clientIp, source,
-  });
+export async function forwardTicket({ attachments = [], ...ticket }) {
+  const payload = ticketPayload({ ...ticket, attachments });
   const ts = String(Math.floor(Date.now() / 1000));
+  const headers = {
+    Accept: 'application/json',
+    'X-WQ-AI-Timestamp': ts,
+    'X-WQ-AI-Signature': `sha256=${signTicketRequest(payload, ts)}`,
+  };
+  // Text only: the JSON body itself. With files: multipart, the signed JSON as the `payload` field and the
+  // files in the same order as its list (fetch sets the multipart Content-Type and boundary).
+  let requestBody = payload;
+  if (attachments.length) {
+    requestBody = new FormData();
+    requestBody.append('payload', payload);
+    attachments.forEach((a, i) => requestBody.append(`attachments[${i}]`, new Blob([a.buffer], { type: a.type }), a.name));
+  } else {
+    headers['Content-Type'] = 'application/json';
+  }
   let res;
   try {
     res = await fetch(`${config.mainAppUrl}/internal/ai/tickets`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        'X-WQ-AI-Timestamp': ts,
-        'X-WQ-AI-Signature': `sha256=${signTicketRequest(raw, ts)}`,
-      },
-      body: raw,
-      signal: AbortSignal.timeout(10_000),
+      method: 'POST', headers, body: requestBody,
+      // Files take longer to send than a line of text.
+      signal: AbortSignal.timeout(attachments.length ? 60_000 : 10_000),
     });
   } catch (err) {
     console.error('[tickets] main app unreachable:', err.message);
