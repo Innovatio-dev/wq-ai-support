@@ -246,6 +246,35 @@ export function enterToSubmit(textarea, submit) {
 /** Loose shape check; the server (and the main app) validate for real. */
 export const looksLikeEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) && s.length <= 254;
 
+// Ticket attachments: the main app's limits. Checked here for a quick answer; the server checks for real.
+export const ATTACHMENTS = { maxFiles: 3, maxBytes: 10 * 1024 * 1024, accept: '.jpg,.jpeg,.png,.pdf' };
+
+/** Add picked files to `list` within the limits. Returns a message for the first one refused, or ''. */
+export function addAttachments(list, incoming) {
+  let problem = '';
+  for (const f of incoming) {
+    if (list.length >= ATTACHMENTS.maxFiles) { problem = `You can attach up to ${ATTACHMENTS.maxFiles} files.`; break; }
+    if (!/\.(jpe?g|png|pdf)$/i.test(f.name)) { problem ||= `${f.name}: only jpg, png or pdf files are allowed.`; continue; }
+    if (f.size > ATTACHMENTS.maxBytes) { problem ||= `${f.name} is larger than 10MB.`; continue; }
+    list.push(f);
+  }
+  return problem;
+}
+
+/** The chosen files as list items, each with a remove button carrying its index. */
+export const attachmentItems = (list) => list.map((f, i) => `<li>${icons.file.replace('<svg', '<svg style="width:16px;height:16px;color:#1F4A44"')}<span class="n">${escapeHtml(f.name)}</span><span class="sz">${(f.size / 1024 / 1024).toFixed(2)} MB</span><button type="button" data-i="${i}" aria-label="Remove ${escapeHtml(f.name)}">${icons.x}</button></li>`).join('');
+
+/** POST a ticket: JSON when there are no files, multipart (fields + `attachments`) when there are. */
+export function postTicket(fields, files = []) {
+  if (!files.length) {
+    return apiFetch('/api/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields) });
+  }
+  const form = new FormData();
+  for (const [k, v] of Object.entries(fields)) if (v != null) form.append(k, String(v));
+  for (const f of files) form.append('attachments', f, f.name);
+  return apiFetch('/api/tickets', { method: 'POST', body: form });
+}
+
 /**
  * @param {boolean} [askEmail]  guests must leave a reply address; signed-in users are known to the main app
  */
@@ -262,11 +291,34 @@ export function ticketForm({ draft = null, categories, conversationId = null, su
     <div class="field"><textarea name="description" id="tf-desc-${uid}" maxlength="2000" placeholder="Please describe your issue in detail"></textarea></div>
     ${askEmail ? `<label for="tf-email-${uid}">Your email (we'll reply here)</label>
     <div class="field"><input type="email" name="email" id="tf-email-${uid}" maxlength="254" autocomplete="email" placeholder="name@example.com" required></div>` : ''}
+    <label for="tf-file-${uid}">Attachments (optional)</label>
+    <div class="tf-attach">
+      <button type="button" class="btn btn-ghost" data-attach>${icons.upload} Add files</button>
+      <small>Up to 3 · jpg, png or pdf · 10MB each</small>
+      <input type="file" id="tf-file-${uid}" multiple accept="${ATTACHMENTS.accept}" hidden>
+    </div>
+    <ul class="files tf-files"></ul>
     <div class="form-error" hidden></div>
     <div class="form-actions"><button type="button" class="btn btn-ghost" data-close>Close</button><button type="submit" class="btn">Submit</button></div>
   </form>`);
   $('textarea', form).value = draft?.description || '';
   $('[data-close]', form).addEventListener('click', () => onClose?.(form));
+
+  const files = [];
+  const fileInput = $('input[type=file]', form);
+  const renderFiles = () => {
+    $('.tf-files', form).innerHTML = attachmentItems(files);
+    $('.tf-files', form).querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { files.splice(+b.dataset.i, 1); renderFiles(); }));
+  };
+  $('[data-attach]', form).addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    const problem = addAttachments(files, fileInput.files);
+    fileInput.value = '';
+    const err = $('.form-error', form);
+    err.hidden = !problem;
+    err.textContent = problem;
+    renderFiles();
+  });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const category = $('select', form).value;
@@ -285,13 +337,10 @@ export function ticketForm({ draft = null, categories, conversationId = null, su
     const btn = $('button[type=submit]', form);
     btn.disabled = true;
     try {
-      const r = await apiFetch('/api/tickets', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category, description, email, conversation_id: conversationId, surface }),
-      });
-      const j = await r.json();
+      const r = await postTicket({ category, description, email, conversation_id: conversationId, surface }, files);
+      const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.message || 'Could not submit the ticket.');
-      onSubmitted?.({ ticket_number: j.ticket_number, category, description, form });
+      onSubmitted?.({ ticket_number: j.ticket_number, category, description, attachments: files.map((f) => f.name), form });
     } catch (ex) {
       err.hidden = false;
       err.textContent = ex.message;
@@ -433,10 +482,11 @@ export class ChatView {
     const form = ticketForm({
       draft: data, categories: data.categories, conversationId: this.state.conversation_id, surface: this.surface, askEmail: this.askEmail,
       onClose: (f) => { f.remove(); this.scroll(); },
-      onSubmitted: ({ ticket_number: n, category, description, form: f }) => {
+      onSubmitted: ({ ticket_number: n, category, description, attachments = [], form: f }) => {
         f.remove();
         this.pinRow = null;
-        this.addBubble('user', `I need help with:\n${category}\n\nDescription:\n${description}`);
+        const attached = attachments.length ? `\n\nAttachments:\n${attachments.join('\n')}` : '';
+        this.addBubble('user', `I need help with:\n${category}\n\nDescription:\n${description}${attached}`);
         this.addBubble('assistant', ticketSubmittedText(n), { pre: true });
       },
     });

@@ -299,6 +299,12 @@ a { color: var(--link); }
 .form-actions .btn { height: 35px; padding: 0 14px; font-size: 14px; }
 .form-actions .btn-ghost { padding: 0 18px; }
 .form-error { color: #B42318; font-size: 13px; margin-top: 8px; }
+.tf-attach { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.tf-attach .btn { height: 34px; padding: 0 12px; font-size: 13px; gap: 6px; }
+.tf-attach .btn svg { width: 16px; height: 16px; }
+.tf-attach small { color: var(--muted); font-size: 12px; }
+.tf-files { margin: 8px 0 0; }
+.tf-files:empty { display: none; }
 .chat-input { flex: none; padding: 12px 16px 16px; background: var(--chat-bg); }
 .chat-input .pill-input { height: 48px; }
 .chat-input .pill-input input { padding-left: 24px; }

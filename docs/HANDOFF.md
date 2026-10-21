@@ -44,7 +44,8 @@ Branch **`feat/embed-widget`**, branched from `main`; `main` already has the Ope
 - `embed.js` fixes here: a frame reload no longer wipes the member's own transcript; links in the panel open in a new tab (help pages refuse to be framed).
 - `docs/DEPLOY.md`: what DevOps needs, for both repos.
 - **Next batch:** "My earnings" (plan §9) and per-user flag targeting.
-- **Open before launch:** turn on Turnstile for the public help site (a guest can type any address into a ticket); `LIMITER_STORE` shared (Redis) if the main app runs several instances; one instance only here until state moves to Redis; the two help centers (the AI's password steps differ from the real app); attachments stay text-only (the main app keeps uploads on its own disk).
+- **Open before launch:** turn on Turnstile for the public help site (a guest can type any address into a ticket); `LIMITER_STORE` shared (Redis) if the main app runs several instances; one instance only here until state moves to Redis; the two help centers (the AI's password steps differ from the real app); nothing else blocking.
+- **Attachments built (2026-10-21, user's call):** 3 files, jpg/png/pdf, 10MB each, in the chat's ticket form and on `/ticket`, forwarded with a signed SHA-256 list (plan §6.1) and stored by the main app like its own form's. On production they live on the container's disk until uploads move to S3; accepted.
 - Local launch configs `ai-for-wealth-quest` and `wealth-quest-with-ai` are in `.claude/launch.json`. To send no mail while testing, the main app needs a `.env.local` (gitignored) with `SENDGRID_API_KEY=`, `SMTP_HOST=127.0.0.1`, `SMTP_PORT=1`, `QUEUE_DRIVER=sync`, `AI_SUPPORT_ORIGIN=http://localhost:3000`, `AI_SUPPORT_SERVICE_SECRET=dev-ai-secret`; the flag is turned on in the dev DB (the admin toggle needs an emailed code).
 
 ## Step 6 checklist (as originally planned; now built, see above)

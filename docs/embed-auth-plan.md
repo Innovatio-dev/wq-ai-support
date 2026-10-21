@@ -101,7 +101,7 @@ Instead of `data/tickets.jsonl`, the AI service forwards tickets to the main app
 - Category: the AI's subcategory (e.g. "Logging in") maps to its top-level category (e.g. "Manage your account"), which is always one of `TICKET_CATEGORIES`. The AI's "Something else" is sent as **"Manage your account"** (decided 2026-10-20), so the main app's list stays as it is.
 - The main app returns the `reference`, and the chat shows that number.
 - Rate limits: the main app's cooldown is keyed by IP + email. The AI service passes the member's IP and email so the cooldown still applies per person, not to the AI server's IP.
-- Attachments: the main app already supports them (3 files, 10 MB, jpg/png/pdf). Add them to the in-chat form in a later step (multipart pass-through); text-only in the first step.
+- Attachments (built 2026-10-21): the main app's limits, 3 files, 10 MB each, jpg/png/pdf, in the chat's ticket form and on `/ticket`. This service checks them (extension *and* first bytes), never sends them to the model provider, and forwards them with the ticket (§6.1); the main app stores them like its own form's. Production keeps them on the container's disk until uploads move to S3 (accepted, 2026-10-21).
 - To reuse the logic, the ticket-creation part of `SupportTicketsController#store` moves into a small service (`#services/support/create_ticket`) that both endpoints call.
 - Optional, additive migration: `support_tickets.source` (`form` | `ai_chat`) + `conversation_ref`, so support can see a ticket came from the chat.
 
@@ -120,7 +120,13 @@ X-WQ-AI-Signature: sha256=<hex HMAC-SHA256(AI_SUPPORT_SERVICE_SECRET, "<timestam
   "client_ip": "203.0.113.7",                  // for the per-IP cooldown
   "source": "ai_chat" | "help_center" }
 ```
-The main app must: compare the signature in constant time; refuse a timestamp more than 5 minutes off; never trust a user id from the body (only from the verified token); apply its cooldown to `client_ip` + the resolved email.
+**With files**, the same request goes as `multipart/form-data`: the JSON above is the `payload` field, and it is what's signed (`"<timestamp>.<payload>"`, since a multipart body can't be signed whole). It gains a list of the files, which follow as `attachments[0..2]` in the same order:
+```
+"attachments": [ { "name": "receipt.pdf", "type": "application/pdf", "size": 48213, "sha256": "<hex>" } ]
+```
+The main app holds the files to its form's limits, then re-hashes each one: a missing, extra, swapped or edited file is refused (`422`), so the files are as tamper-proof as the text.
+
+The main app must: compare the signature in constant time; refuse a timestamp more than 5 minutes off, and a signature it has already accepted; never trust a user id from the body (only from the verified token); apply its cooldown to `client_ip` + the resolved email.
 
 | Response | Meaning | Shown to the user |
 |---|---|---|
@@ -128,7 +134,7 @@ The main app must: compare the signature in constant time; refuse a timestamp mo
 | `401` | bad signature, or the member token no longer verifies | "Your session has ended…" (members) |
 | `422 {"message"}` | validation | the main app's message |
 | `429 {"message"}` | cooldown | the main app's message |
-| anything else / timeout (10 s) | | "We couldn't send your ticket right now…" |
+| anything else / timeout (10 s; 60 s with files) | | "We couldn't send your ticket right now…" |
 
 ## 7. Work list
 

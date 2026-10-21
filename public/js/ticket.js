@@ -1,16 +1,12 @@
-// "Open a ticket" page. Attachments are validated client-side only (type, size, count); in this
-// prototype only their metadata is sent, never the files — and never to the model provider. When tickets go
-// to the main app (ticket_attachments: false) the attachment box is hidden until real uploads are wired.
-import { $, icons, mountHeader, getConfig, escapeHtml, apiFetch, looksLikeEmail } from './common.js';
+// "Open a ticket" page. Attachments (3 files, jpg/png/pdf, 10MB each) are checked here for a quick answer
+// and again by the server, which forwards them with the ticket to the main app — never to the model provider.
+import { $, icons, mountHeader, getConfig, escapeHtml, looksLikeEmail, addAttachments, attachmentItems, postTicket } from './common.js';
 
 mountHeader();
 $('#cat-chev').outerHTML = icons.chevronDown.replace('<svg', '<svg class="sel-chev"');
 $('#browse').innerHTML = `${icons.upload} Upload file`;
 $('#check').innerHTML = icons.check;
 
-const MAX_FILES = 3;
-const MAX_BYTES = 10 * 1024 * 1024;
-const OK_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
 let files = [];
 
 getConfig().then((cfg) => {
@@ -30,18 +26,11 @@ $('#email').addEventListener('input', refresh);
 function showError(msg) { $('#err').hidden = !msg; $('#err').textContent = msg || ''; }
 
 function addFiles(list) {
-  showError('');
-  for (const f of list) {
-    if (files.length >= MAX_FILES) { showError(`You can attach up to ${MAX_FILES} files.`); break; }
-    const typeOk = OK_TYPES.includes(f.type) || /\.(jpe?g|png|pdf)$/i.test(f.name);
-    if (!typeOk) { showError(`${f.name}: only jpg, png or pdf files are allowed.`); continue; }
-    if (f.size > MAX_BYTES) { showError(`${f.name} is larger than 10MB.`); continue; }
-    files.push(f);
-  }
+  showError(addAttachments(files, list));
   renderFiles();
 }
 function renderFiles() {
-  $('#files').innerHTML = files.map((f, i) => `<li>${icons.file.replace('<svg', '<svg style="width:16px;height:16px;color:#1F4A44"')}<span class="n">${escapeHtml(f.name)}</span><span class="sz">${(f.size / 1024 / 1024).toFixed(2)} MB</span><button type="button" data-i="${i}" aria-label="Remove ${escapeHtml(f.name)}">${icons.x}</button></li>`).join('');
+  $('#files').innerHTML = attachmentItems(files);
   $('#files').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { files.splice(+b.dataset.i, 1); renderFiles(); }));
 }
 
@@ -57,11 +46,8 @@ $('#form').addEventListener('submit', async (e) => {
   if (!valid()) return;
   $('#submit').disabled = true;
   try {
-    const r = await apiFetch('/api/tickets', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category: $('#cat').value, description: $('#desc').value.trim(), email: $('#email').value.trim(), attachments: files.map((f) => ({ name: f.name, size: f.size, type: f.type })) }),
-    });
-    const j = await r.json();
+    const r = await postTicket({ category: $('#cat').value, description: $('#desc').value.trim(), email: $('#email').value.trim() }, files);
+    const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.message || 'Could not submit the ticket.');
     $('#num').textContent = `#${j.ticket_number}`;
     $('#form').hidden = true;
