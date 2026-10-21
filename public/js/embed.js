@@ -21,8 +21,8 @@ $('#mode').hidden = surface !== 'member';
 // ---------- transcripts: one per identity, cleared when the identity changes ----------
 const GUEST_KEY = 'wq_embed_guest';
 const MEMBER_PREFIX = 'wq_embed_member_';
-function clearMemberTranscripts() {
-  try { for (const k of Object.keys(sessionStorage)) if (k.startsWith(MEMBER_PREFIX)) store.del(k); } catch { /* storage blocked */ }
+function clearMemberTranscripts(keep = null) {
+  try { for (const k of Object.keys(sessionStorage)) if (k.startsWith(MEMBER_PREFIX) && k !== keep) store.del(k); } catch { /* storage blocked */ }
 }
 
 let chat = null;
@@ -52,6 +52,16 @@ $('#composer').addEventListener('submit', (e) => {
   if (!t || !composerOpen || !chat || chat.busy) return;
   $('#msg').value = '';
   chat.send(t);
+});
+
+// ---------- links ----------
+// Inside the frame a same-site link (the cited /help/... article) would load in the panel, where every page
+// but /embed refuses to be framed. Every link opens in a new tab instead.
+document.addEventListener('click', (e) => {
+  const a = e.target instanceof Element ? e.target.closest('a[href]') : null;
+  if (!a || a.target === '_blank') return;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
 });
 
 // ---------- talking to the main app ----------
@@ -106,11 +116,13 @@ function memberAuth() {
     signedOut = false;
     token = t;
     exp = claims.exp;
-    // A different member than before (or the first one): fresh transcript, old member transcripts gone.
+    // First token of this page, or a different member: any other member's transcript (and the guest's)
+    // goes; this member's own stays, so a page change in the main app (which reloads the frame) keeps it.
     if (identity !== `member:${claims.sub}`) {
-      clearMemberTranscripts();
+      const key = `${MEMBER_PREFIX}${claims.sub}`;
+      clearMemberTranscripts(key);
       store.del(GUEST_KEY);
-      useIdentity(`member:${claims.sub}`, `${MEMBER_PREFIX}${claims.sub}`, false);
+      useIdentity(`member:${claims.sub}`, key, false);
     }
     notice('');
     setComposer(true);
@@ -158,6 +170,8 @@ if (auth) {
   setComposer(false);
   notice('Checking your sign-in…');
 } else {
+  // Guest panel (the sign-in page): whoever was signed in in this tab has left, so their transcript goes.
+  clearMemberTranscripts();
   useIdentity('guest', GUEST_KEY, true);
   setComposer(true);
 }

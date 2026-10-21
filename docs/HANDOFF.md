@@ -36,7 +36,18 @@ Branch **`feat/embed-widget`**, branched from `main`; `main` already has the Ope
 - the main app rotating its signing key;
 - `/ticket`.
 
-## Next step: step 6 in `wealth-quest` (not started)
+## Update 2026-10-21
+- Steps 4–5 committed and pushed here (`bd0343a`).
+- **Step 6 done in `wealth-quest`**: branch `feat/ai-support-widget` (from up-to-date `main`), three commits, pushed; **no PR yet** (the user opens it). Its build-log entry (2026-10-21) lists everything.
+- Tested end to end with the **real OpenRouter key** (user, 2026-10-21): guest and member answers, member and guest tickets landing in `support_tickets` with the right owner and address, transcript kept across page changes.
+- Security review (2026-10-21): two fixes. Main app: each signed ticket request is accepted once (replay guard). Here: the guest panel clears member transcripts left in the tab.
+- `embed.js` fixes here: a frame reload no longer wipes the member's own transcript; links in the panel open in a new tab (help pages refuse to be framed).
+- `docs/DEPLOY.md`: what DevOps needs, for both repos.
+- **Next batch:** "My earnings" (plan §9) and per-user flag targeting.
+- **Open before launch:** turn on Turnstile for the public help site (a guest can type any address into a ticket); `LIMITER_STORE` shared (Redis) if the main app runs several instances; one instance only here until state moves to Redis; the two help centers (the AI's password steps differ from the real app); attachments stay text-only (the main app keeps uploads on its own disk).
+- Local launch configs `ai-for-wealth-quest` and `wealth-quest-with-ai` are in `.claude/launch.json`. To send no mail while testing, the main app needs a `.env.local` (gitignored) with `SENDGRID_API_KEY=`, `SMTP_HOST=127.0.0.1`, `SMTP_PORT=1`, `QUEUE_DRIVER=sync`, `AI_SUPPORT_ORIGIN=http://localhost:3000`, `AI_SUPPORT_SERVICE_SECRET=dev-ai-secret`; the flag is turned on in the dev DB (the admin toggle needs an emailed code).
+
+## Step 6 checklist (as originally planned; now built, see above)
 The checklist is plan §7.2; the contracts it must follow are §4.2 (token claims, `iss` = `ssoConfig.issuer`), §4.5 (messages) and §6.1 (ticket endpoint). In short:
 1. **Flag** `ai_support_widget` in the feature-flag seeder, off.
 2. **`GET /ai/session-token`** behind `auth()`: EdDSA token signed with the existing SSO key, `typ: wq-ai+jwt`, `aud: wq-ai-support`, 10 min, pairwise `sub`, `name`, `email`, `uid_enc`.
@@ -77,7 +88,6 @@ Plan §10. The ones that matter next:
 - Reuse the SSO signing key or a dedicated one.
 
 ## Not done / caveats
-- **No test with the real AI** through `/embed` since steps 4–5 (all mock). Do one with the OpenRouter key before handing over.
 - **`npm run screenshots`** was updated for the email field but not run (needs Playwright Chromium).
 - **State is in memory** (conversations, rate limits, budget): one instance only until it moves to Redis/DB. DevOps knows (plan §7.3).
 - **`.env` here** holds the real OpenRouter key, `DEMO_PASSWORD=demo-password` and a `SESSION_SECRET`. It's gitignored.
