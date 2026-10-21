@@ -284,10 +284,13 @@ a { color: var(--link); }
 .ticket-form label { display: block; font-size: 13px; line-height: 16px; color: #6E6E6E; margin: 0 0 8px 4px; }
 .ticket-form label + .field { margin-bottom: 18px; }
 .field { position: relative; }
-.field select, .field textarea, .field input[type="text"] {
+.field select, .field textarea, .field input[type="text"], .field input[type="email"] {
   width: 100%; border: 1px solid #E4E4E4; background: #fff; border-radius: 8px; outline: none; font-size: 14px; color: var(--ink);
 }
 .field select { appearance: none; height: 40px; padding: 0 36px 0 12px; }
+.field input[type="email"] { height: 40px; padding: 0 12px; }
+.field input[type="email"]::placeholder { color: var(--placeholder); }
+.field input[type="email"]:focus { border-color: #BDBDBD; }
 .field .sel-chev { position: absolute; right: 12px; top: 12px; width: 16px; height: 16px; pointer-events: none; color: #2A2A2A; }
 .field textarea { height: 104px; padding: 12px; resize: vertical; line-height: 20px; }
 .field textarea::placeholder { color: var(--placeholder); }
@@ -349,7 +352,7 @@ a { color: var(--link); }
 .ticket-page .subtitle { max-width: 440px; margin: 14px auto 0; }
 .form-card { margin-top: 36px; }
 .form-card .lbl { display: block; font: 500 14px/18px var(--f-body); color: var(--ink); margin: 0 0 8px; }
-.form-card .field + .lbl, .form-card .field + .lbl-row { margin-top: 22px; }
+.form-card .field + .lbl, .form-card .field + .lbl-row, .form-card .field + .att-block { margin-top: 22px; }
 .form-card .field select { height: 46px; }
 .form-card .field .sel-chev { top: 15px; }
 .form-card .field textarea { height: 140px; }
@@ -510,6 +513,9 @@ body.bo { background: #F4F4F4; --bo-side: 226px; }
 body.embed { background: var(--chat-bg); overflow: hidden; }
 .embed .panel { position: static; width: 100%; height: 100vh; height: 100dvh; border-radius: 0; box-shadow: none; }
 .mode .toggle button[disabled] { color: #9A9A9A; cursor: not-allowed; }
+.embed-notice { flex: none; display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0 16px; padding: 10px 12px; border-radius: 10px; background: #F4EFE3; color: #5C4A26; font-size: 13px; line-height: 18px; text-align: center; }
+.embed-notice .btn { height: 30px; padding: 0 12px; font-size: 12.5px; }
+.chat-input input:disabled { opacity: .6; }
 .toggle .soon { margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: #ECE4D2; color: #7A5E2A; font-size: 10.5px; font-weight: 600; line-height: 15px; }
 
 /* ---------- 15. login / 404 ---------- */

@@ -36,7 +36,8 @@ if (!BASE) {
   const port = await freePort();
   BASE = `http://localhost:${port}`;
   server = spawn(process.execPath, ['server.js'], {
-    env: { ...process.env, MOCK_OPENAI: '1', DEMO_PASSWORD: PASSWORD, PORT: String(port), MOCK_WORD_DELAY_MS: '6', OPENROUTER_API_KEY: '' },
+    // Demo mode with local tickets (7-digit numbers), whatever the shell has set.
+    env: { ...process.env, MOCK_OPENAI: '1', DEMO_PASSWORD: PASSWORD, PORT: String(port), MOCK_WORD_DELAY_MS: '6', OPENROUTER_API_KEY: '', DEMO_MODE: '1', MAIN_APP_URL: '', AI_SUPPORT_SERVICE_SECRET: '' },
     stdio: ['ignore', 'pipe', 'inherit'],
   });
   await new Promise((resolve, reject) => {
@@ -135,6 +136,7 @@ try {
   await chatIdle(p);
   await shot(p, 'desktop-09-chat-ticket-form');
   await p.fill('.ticket-form textarea', 'I encountered an issue while trying to access my account. It keeps showing an error message. Can you help me resolve this?');
+  await p.fill('.ticket-form input[name=email]', 'member@example.com');
   await p.click('.ticket-form button[type=submit]');
   await p.waitForFunction(() => /submitted as ticket #\d{7}/.test(document.querySelector('#body').textContent));
   await shot(p, 'desktop-10-chat-ticket-submitted');
@@ -145,6 +147,7 @@ try {
   await shot(p, 'desktop-12a-ticket-empty');
   await p.selectOption('#cat', 'Payments & billing');
   await p.fill('#desc', 'I was charged twice for my monthly license this month.');
+  await p.fill('#email', 'member@example.com');
   await shot(p, 'desktop-12b-ticket-filled');
   await p.click('#submit');
   await p.waitForSelector('#success:not([hidden])');

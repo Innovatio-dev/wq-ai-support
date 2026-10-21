@@ -50,16 +50,16 @@ app.wealthquest.com backend ◄───── POST /internal/ai/tickets (servic
 
 ### 4.2 Members (dashboard and every member page)
 1. The member opens the widget; the iframe loads `https://support.wealthquest.com/embed?surface=member` (**no token in the URL**).
-2. The iframe posts `wq-ai:ready` to `window.parent`. The launcher accepts messages only from the AI origin.
+2. The iframe posts `wq-ai:ready` (informational) and then `wq-ai:token-request` to `window.parent`. The launcher accepts messages only from the AI origin *and* its own iframe's window, and fetches a token **only on `wq-ai:token-request`**.
 3. The launcher calls **`GET /ai/session-token`** on the main app (behind `auth()`, same-origin, session cookie, throttled).
 4. The main app returns a JWT signed with the existing SSO key:
    - header `alg: EdDSA`, `kid`, `typ: wq-ai+jwt`
-   - `iss` = APP_URL, `aud` = `wq-ai-support`, `iat`, `exp` = **+10 min**, `jti`
+   - `iss` = **`ssoConfig.issuer`** (`SSO_ISSUER`, else `APP_URL`, trailing `/` removed; the AI side's `WQ_ISSUER` must equal it), `aud` = `wq-ai-support`, `iat`, `exp` = **+10 min**, `jti`
    - `sub` = `pairwiseSubject(user.id, 'wq-ai-support')` (the AI service never sees internal ids)
    - `name` (public display name), `email`, `uid_enc` = the user id encrypted with the main app's `encryption` service (only the main app can read it; used when the AI service calls back, §6)
 5. The launcher posts `{type: 'wq-ai:token', token}` to the iframe with `targetOrigin` = the exact AI origin.
 6. The iframe sends `Authorization: Bearer <token>` on every API call. The AI server verifies the signature against the cached JWKS, and checks `iss`, `aud`, `typ`, `exp`.
-7. **Refresh**: on `401 token_expired` (or ~1 min before `exp`) the iframe posts `wq-ai:token-request`; the launcher repeats step 3.
+7. **Refresh, on demand only**: before a request, if the token has less than a minute left (or the server answers `401 token_expired`, retried once), the iframe posts `wq-ai:token-request`; the launcher repeats step 3. **Never on a timer**: each token fetch carries the main-app session cookie and would reset its 2 h idle timeout, so an open, idle panel would keep the member signed in forever. Idle panel = no requests.
 8. **Main-app session gone** (idle 2 h, logged out elsewhere): step 3 returns 401 → the launcher posts `wq-ai:signed-out` → the panel shows "Your session ended, please sign in again" and stops sending.
 
 ### 4.3 Already-logged-in production users
@@ -69,7 +69,18 @@ app.wealthquest.com backend ◄───── POST /internal/ai/tickets (servic
 - Restricted / held / closed accounts: the token endpoint follows the same `auth()` gate as other member pages. Should they still see the widget? Default: yes (support is how they get unstuck).
 
 ### 4.4 Switching users on a shared computer
-The chat transcript is kept in the iframe's `sessionStorage`. Key it by identity (`guest` or `sub`) and clear it whenever the identity changes (guest → member after login, member → guest after logout, member A → member B). The server binds each conversation to its owner (`sid` for guests, `sub` for members), and a request carrying a different identity starts a new conversation.
+The chat transcript is kept in the iframe's `sessionStorage`. Key it by identity (`guest` or `sub`) and clear it whenever the identity changes (guest → member after login, member → guest after logout, member A → member B). On `wq-ai:signed-out` the conversation is wiped **from the screen too**, not only from storage. The server binds each conversation to its owner (`sid` for guests, `sub` for members), and a request carrying a different identity starts a new conversation.
+
+### 4.5 Message contract (built: `public/js/embed.js`; reference parent: `scripts/embed-host.mjs`)
+All messages are `{ type, ... }` objects, posted with an exact `targetOrigin`, never `'*'`.
+
+| Direction | `type` | Payload | Parent does |
+|---|---|---|---|
+| iframe → parent | `wq-ai:ready` | `surface` | nothing required |
+| iframe → parent | `wq-ai:token-request` | – | `GET /ai/session-token`; 200 → `wq-ai:token`, 401 → `wq-ai:signed-out`, other → nothing (the panel times out after 10 s and offers "Try again") |
+| iframe → parent | `wq-ai:close` | – | hide the panel, return focus to the launcher |
+| parent → iframe | `wq-ai:token` | `token` | – |
+| parent → iframe | `wq-ai:signed-out` | – | also send it on logout if the page stays open |
 
 ## 5. The widget UI
 
@@ -87,12 +98,37 @@ Instead of `data/tickets.jsonl`, the AI service forwards tickets to the main app
 - **New main-app endpoint** `POST /internal/ai/tickets` (CSRF-excepted like `/oauth/token`), authenticated by a shared **service secret** (HMAC over the body + timestamp, so a replayed or edited request fails).
 - **Members**: the AI service forwards the member's current token as well. The main app verifies it (its own key), decrypts `uid_enc` → `userId`, and takes the **email from the user record**, not from the form.
 - **Guests**: the email comes from the form.
-- Category: the AI's subcategory (e.g. "Logging in") maps to its top-level category (e.g. "Manage your account"), which is always one of `TICKET_CATEGORIES`.
+- Category: the AI's subcategory (e.g. "Logging in") maps to its top-level category (e.g. "Manage your account"), which is always one of `TICKET_CATEGORIES`. The AI's "Something else" is sent as **"Manage your account"** (decided 2026-10-20), so the main app's list stays as it is.
 - The main app returns the `reference`, and the chat shows that number.
 - Rate limits: the main app's cooldown is keyed by IP + email. The AI service passes the member's IP and email so the cooldown still applies per person, not to the AI server's IP.
 - Attachments: the main app already supports them (3 files, 10 MB, jpg/png/pdf). Add them to the in-chat form in a later step (multipart pass-through); text-only in the first step.
 - To reuse the logic, the ticket-creation part of `SupportTicketsController#store` moves into a small service (`#services/support/create_ticket`) that both endpoints call.
 - Optional, additive migration: `support_tickets.source` (`form` | `ai_chat`) + `conversation_ref`, so support can see a ticket came from the chat.
+
+### 6.1 Request contract (built: `src/tickets.js`; reference receiver: `scripts/embed-host.mjs`)
+```
+POST {MAIN_APP_URL}/internal/ai/tickets
+Content-Type: application/json
+X-WQ-AI-Timestamp: <unix seconds>
+X-WQ-AI-Signature: sha256=<hex HMAC-SHA256(AI_SUPPORT_SERVICE_SECRET, "<timestamp>.<raw body>")>
+
+{ "category": "Manage your account",          // always one of TICKET_CATEGORIES ("Something else" → "Manage your account")
+  "description": "…",                          // ≥ 10 characters
+  "email": "guest@example.com" | null,         // guests only
+  "member_token": "<the member's token>" | null, // members: verify with our own key → uid_enc → user; email from the user record
+  "conversation_ref": "<uuid>" | null,
+  "client_ip": "203.0.113.7",                  // for the per-IP cooldown
+  "source": "ai_chat" | "help_center" }
+```
+The main app must: compare the signature in constant time; refuse a timestamp more than 5 minutes off; never trust a user id from the body (only from the verified token); apply its cooldown to `client_ip` + the resolved email.
+
+| Response | Meaning | Shown to the user |
+|---|---|---|
+| `201 {"reference": "ddmmyy-N"}` | created | "submitted as ticket #ddmmyy-N" |
+| `401` | bad signature, or the member token no longer verifies | "Your session has ended…" (members) |
+| `422 {"message"}` | validation | the main app's message |
+| `429 {"message"}` | cooldown | the main app's message |
+| anything else / timeout (10 s) | | "We couldn't send your ticket right now…" |
 
 ## 7. Work list
 
@@ -130,16 +166,17 @@ DevOps chooses the subdomain names, DNS, TLS and hosting. What they need from us
 - Until DevOps has the names, local development uses `localhost` origins.
 
 ### 7.4 Progress
-Built one step at a time, each committed on `feat/embed-widget`:
+Built one step at a time on `feat/embed-widget` (branched from `main`, which already has the OpenRouter work, PR #1):
 
 | Step | What | Status |
 |---|---|---|
-| 1 | `/embed` panel (guest / member, My earnings "Soon"), close → parent, framing only for `ALLOWED_PARENT_ORIGINS`, `npm run embed:host` stand-in | ✅ done |
-| 2 | Production mode (`DEMO_MODE` off): demo Back Office, mock API and comp agent return 404; "Log in" → `MAIN_APP_URL/login` | ✅ done |
-| 3 | Verify the main app's token (`src/identity.js`: EdDSA, `iss`/`aud`/`typ`, ≤15 min, JWKS cached); conversations, rate limits and `safety_identifier` keyed by member; the agent's "signed in" context decided by the server | ✅ done |
-| 4 | postMessage token handshake: refresh, sign-out, user switch | next |
-| 5 | Tickets forwarded to the main app | |
-| 6 | Main-app side (`wealth-quest`) behind `ai_support_widget` | |
+| 1 | `/embed` panel (guest / member, My earnings "Soon"), close → parent, framing only for `ALLOWED_PARENT_ORIGINS`, `npm run embed:host` stand-in | ✅ committed + pushed (`9855335`) |
+| 2 | Production mode (`DEMO_MODE` off): demo Back Office, mock API and comp agent return 404; "Log in" → `MAIN_APP_URL/login` | ✅ committed + pushed (`db43559`) |
+| 3 | Verify the main app's token (`src/identity.js`: EdDSA, `iss`/`aud`/`typ`, ≤15 min, JWKS cached); conversations, rate limits and `safety_identifier` keyed by member; the agent's "signed in" context decided by the server | ✅ committed + pushed (`db43559`); the trailing-slash issuer fix is uncommitted, with 4–5 |
+| 4 | postMessage token handshake (§4.5): on-demand refresh, sign-out wipes the screen, per-identity transcripts; `embed:host` now signs tokens like the main app | ✅ built, not committed |
+| 5 | Tickets forwarded to the main app (§6.1), main app's reference shown; email field for guests (chat + `/ticket`); production refuses unforwarded tickets | ✅ built, not committed |
+| 6 | Main-app side (`wealth-quest`) behind `ai_support_widget` (§7.2) | not started — next |
+| — | My earnings (§9) | later batch, after Support |
 
 ### 7.5 Local testing
 - Run both apps on `localhost`: the main app on `:3333`, this repo on `:3000`. Ports don't count for "same site", so this behaves like production (`app.` + the AI subdomain under one domain): the iframe's cookies work.
@@ -155,10 +192,49 @@ Built one step at a time, each committed on `feat/embed-widget`:
 5. Turn the flag on (for staff first if the flag service supports per-user targeting; otherwise for everyone) and watch error logs, spend and ticket volume.
 6. Rollback = flag off. No migration has to be reversed (the optional `source` column is additive).
 
-## 9. Later batch: My earnings (not now)
-The comp agent will call the main app for the member's figures: a service secret plus the member token, over new read-only endpoints backed by the main app's Pillars read-models (rank status, commission lines, network). The token design above already covers who the member is. The BV-vs-money and data-freshness questions from before still apply.
+## 9. Later batch: My earnings (after Support ships)
 
-Not every signed-in user is an IBO: since `730eb879` (main app) a node is a Promoter only once the licence is paid, and unpaid accounts are Customers (`dashboard-customer` page, `#services/members/back_office_access`). Customers have no rank or commissions, so the token will need a role claim and *My earnings* should stay unavailable for them.
+Researched 2026-10-20 against `wealth-quest` `origin/main`; nothing built. Support (steps 1–6) ships first; this is its own batch.
+
+### 9.1 Principle: the AI never calculates
+Every figure comes **finished** from the main app (Pillars data, or computed by the main app as its own pages do). The agent only fetches, explains and cites the plan. Not even "required − have": the endpoint returns the missing amount, so the answer always matches the member's dashboard. The main app's rules forbid re-implementing comp logic (`CLAUDE.md` §10), and models make arithmetic mistakes. "What if" illustrations ("if you held R5 every day…") are dropped in the first version (decided 2026-10-20; option 2 = the main app returns finished illustrations, later if wanted).
+
+### 9.2 What the main app already has (all Pillars-sourced, cached)
+| The agent needs | In `wealth-quest` |
+|---|---|
+| Daily / weekly / highest rank, next rung, progress % | `pillarsRankView` (`#services/pillars/rank_view`) |
+| What is missing for each rank, per condition | the same view's `ladder` (every rung R1–R12 with this member's progress, computed by Pillars) |
+| Weak / strong leg BV | `member_snapshots` (`leftLegBv28D` / `rightLegBv28D`), `WLBV` in the rank view |
+| SITB this period, days held per rank | `periodRankPay` / `periodSitbUsd` |
+| Daily rank history | `rank_history` (one row per day, 28 days); weekly: `rank_week` |
+| Commissions | `commission_lines` (type, `amountMinor` + `asset`, status, `earnedAt`), `earningsPeriodSummary` |
+| Personally sponsored by leg | `#services/insights/structure`, the direct-network services |
+| Freshness | `readThroughSnapshot` (refreshes when stale; returns `syncedAt`) |
+
+**Not there:** a JSON API — every page is assembled server-side for Inertia.
+
+**Mismatches with the current demo agent:** the mock's 14 daily snapshots (each with SITB + leg BV) don't exist in Pillars, which has daily *rank* only plus per-period totals. The AI's 21 plan pages (`kb/compplan/`) are one plan version; the main app tracks v2/v6 changes and open items (31-day BV window vs Pillars' 28-day reads, Gen-Match not paying, unconfirmed rank names, renamed bonuses). The answers must follow what Pillars actually pays.
+
+### 9.3 Main app work (`wealth-quest`)
+1. **Internal read-only JSON endpoints** for the signed-in member, authenticated exactly like `/internal/ai/tickets` (HMAC + the member's token → user; never a user id from the request). Built from the services above, returning **final numbers**, money in minor units + asset, each with `syncedAt`:
+   - `GET /internal/ai/me/profile`: name, status, licence, good standing, role
+   - `GET /internal/ai/me/rank`: daily / weekly / next rank, ladder with per-condition `required` / `have` / `missing`, SITB this period, 28-day daily ranks
+   - `GET /internal/ai/me/commissions?from&to&type`: lines + period totals
+   - `GET /internal/ai/me/network`: personally sponsored counts by leg and rank (counts, not other members' names)
+2. **`role` claim** in the AI token (`ibo` | `customer`), from `#services/members/back_office_access`.
+3. **Flag `ai_comp_agent`** (off), separate from `ai_support_widget`.
+4. **Japa tests:** own data only; customer → 403; bad signature → 401; partner down → stale data with `syncedAt`, not a 500.
+
+### 9.4 This repo's work (`wq-ai-support`)
+1. **Data client:** replace `mockApiClient` (`src/mock/wq-api.js`) with signed calls to §9.3's endpoints (same `api.get(path)` shape, timeout, a clear "your numbers can't be loaded right now"). The mock stays for demo mode only.
+2. **Tools** (`src/tools/comp-tools.js`): fetch-only tools mirroring the endpoints (`get_my_profile`, `get_my_rank`, `get_my_commissions`, `get_my_network`). **Remove** `calculate_rank_gap` and `project_sitb`; `src/calc/plan.js` becomes demo-only or is deleted (with `test/calc.test.js`). Update the prefetch in `src/agents/comp.js` and the router's data sets.
+3. **Prompts & plan content:** `prompts/comp-agent.md` explains returned figures, never computes, shows "as of {syncedAt}", keeps the compliance rules, no illustrations; `prompts/comp-router.md` gets the new data-set names; `kb/compplan/*` is updated to the client's **current** plan version once the lead and client confirm which.
+4. **Access:** `/api/comp/message` for verified members with `role: ibo` (not only demo mode); guests and customers refused. `src/agents/comp.js` takes the member from `req.member`, not the demo Maria cookie.
+5. **Panel:** `/embed` enables *My earnings* for IBOs (from the server, not the page); customers and guests keep "Soon". Suggested questions based on real data.
+6. **Tests:** client against a stand-in (own data only, customer refused, main app down handled); the agent never calculates; the comp endpoint refuses guests/customers. Extend `npm run embed:host` to serve fake member data for local testing.
+
+### 9.5 Effort and risks
+About 3–4 days in each repo, plus the client's review of plan content and sample answers (the long pole). Risks: Pillars data quality the agent would inherit (`CLAUDE.md` §18 #22, #26, #27); member earnings sent to the model provider via OpenRouter (`data_collection: deny` already; client sign-off needed); compliance — the client's exposure is what is displayed and how earnings are described (`CLAUDE.md` §15).
 
 ## 10. Open questions for the lead
 Subdomain names, DNS, TLS and hosting are DevOps's call (§7.3) and not open here.
@@ -169,6 +245,8 @@ Subdomain names, DNS, TLS and hosting are DevOps's call (§7.3) and not open her
 4. **Ticket `source` column**: add it now (small, additive) or later?
 5. **Which other guest pages** get the widget besides sign-in (forgot password, open ticket, signup)?
 6. **Per-user flag targeting** for a staff-only first rollout: does `#services/flags` support it?
+7. ~~"Something else"~~: **decided 2026-10-20**: mapped to "Manage your account"; the main app's categories are unchanged.
+8. **Attachments** in AI tickets: the main app stores them (3 × 10 MB, jpg/png/pdf), but no screen shows tickets or files to support, the inbox mail carries only a count, and with `DRIVE_DISK=fs` on ECS the files don't survive a deploy (`docs/uploads-on-s3.md`). **Recommendation: text-only AI tickets until that is fixed**; passing files through is about a day then.
 
 ## 11. Test checklist (staging)
 - Guest on sign-in: button shows, panel has no toggle, a question streams, ticket needs email → ticket appears in `support_tickets` with a reference and confirmation mail.

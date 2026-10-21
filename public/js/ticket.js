@@ -1,6 +1,7 @@
 // "Open a ticket" page. Attachments are validated client-side only (type, size, count); in this
-// prototype only their metadata is sent, never the files — and never to OpenAI.
-import { $, icons, mountHeader, getConfig, escapeHtml } from './common.js';
+// prototype only their metadata is sent, never the files — and never to the model provider. When tickets go
+// to the main app (ticket_attachments: false) the attachment box is hidden until real uploads are wired.
+import { $, icons, mountHeader, getConfig, escapeHtml, apiFetch, looksLikeEmail } from './common.js';
 
 mountHeader();
 $('#cat-chev').outerHTML = icons.chevronDown.replace('<svg', '<svg class="sel-chev"');
@@ -14,15 +15,17 @@ let files = [];
 
 getConfig().then((cfg) => {
   $('#cat').insertAdjacentHTML('beforeend', cfg.ticket_categories.map((c) => `<option>${escapeHtml(c)}</option>`).join(''));
+  if (cfg.ticket_attachments === false) { $('#att-block').hidden = true; files = []; }
 });
 
-const valid = () => $('#cat').value && $('#desc').value.trim().length >= 5;
+const valid = () => $('#cat').value && $('#desc').value.trim().length >= 10 && looksLikeEmail($('#email').value.trim());
 const refresh = () => {
   $('#submit').disabled = !valid();
   $('#count').textContent = `${$('#desc').value.length.toLocaleString('en-US')} / 2,000`;
 };
 $('#cat').addEventListener('change', refresh);
 $('#desc').addEventListener('input', refresh);
+$('#email').addEventListener('input', refresh);
 
 function showError(msg) { $('#err').hidden = !msg; $('#err').textContent = msg || ''; }
 
@@ -54,9 +57,9 @@ $('#form').addEventListener('submit', async (e) => {
   if (!valid()) return;
   $('#submit').disabled = true;
   try {
-    const r = await fetch('/api/tickets', {
-      method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category: $('#cat').value, description: $('#desc').value.trim(), attachments: files.map((f) => ({ name: f.name, size: f.size, type: f.type })) }),
+    const r = await apiFetch('/api/tickets', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: $('#cat').value, description: $('#desc').value.trim(), email: $('#email').value.trim(), attachments: files.map((f) => ({ name: f.name, size: f.size, type: f.type })) }),
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.message || 'Could not submit the ticket.');

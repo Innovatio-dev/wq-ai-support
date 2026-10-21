@@ -17,7 +17,7 @@ import { getOrCreateConversation, isFull } from './src/conversations.js';
 import { identify, ownerKey } from './src/identity.js';
 import { runSupportTurn } from './src/agents/support.js';
 import { runCompTurn } from './src/agents/comp.js';
-import { createTicket } from './src/tickets.js';
+import { createTicket, forwardTicket, ticketDestination, mainAppCategory } from './src/tickets.js';
 import { mockApiRouter, mockApiClient } from './src/mock/wq-api.js';
 
 const app = express();
@@ -93,6 +93,8 @@ app.get('/api/config', (req, res) => {
     max_input_chars: config.limits.maxInputChars,
     embed_parent_origins: config.allowedParentOrigins,
     demo: config.demoMode,
+    // Attachments aren't forwarded to the main app yet, so the ticket page hides the picker then.
+    ticket_attachments: ticketDestination() !== 'main_app',
     main_app_url: config.mainAppUrl || null,
     budget: budgetStatus(),
   });
@@ -176,17 +178,40 @@ app.post('/api/support/message', identify, aiRateLimit, agentEndpoint('support')
 if (config.demoMode) app.post('/api/comp/message', requireBackoffice, aiRateLimit, agentEndpoint('comp'));
 
 // ---------- tickets ----------
-app.post('/api/tickets', identify, ticketRateLimit, (req, res) => {
-  const { category, description, conversation_id: conversationId, attachments, surface } = req.body || {};
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+app.post('/api/tickets', identify, ticketRateLimit, async (req, res) => {
+  const { category, description, email: rawEmail, conversation_id: conversationId, attachments, surface } = req.body || {};
   const categories = kb.support.ticketCategories();
   if (typeof category !== 'string' || !categories.includes(category)) return res.status(400).json({ error: 'invalid_category', message: 'Please choose a category.' });
-  if (typeof description !== 'string' || description.trim().length < 5) return res.status(400).json({ error: 'invalid_description', message: 'Please describe the problem.' });
+  if (typeof description !== 'string' || description.trim().length < 10) return res.status(400).json({ error: 'invalid_description', message: 'Please describe the problem (at least 10 characters).' });
   if (description.length > config.limits.maxInputChars) return res.status(400).json({ error: 'too_long', message: 'Description is too long.' });
-  const files = Array.isArray(attachments) ? attachments.slice(0, 3).map((f) => ({ name: String(f?.name || '').slice(0, 120), size: Number(f?.size) || 0, type: String(f?.type || '').slice(0, 40) })) : [];
-  // Tickets still land in data/tickets.jsonl; forwarding them to the main app is step 5 of the embed plan.
+
+  // Members (and the demo user) are known to the main app; a guest must leave a reply address.
   const user = signedInUser(req, surface);
+  const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
+  if (!user && !(EMAIL_RE.test(email) && email.length <= 254)) return res.status(400).json({ error: 'invalid_email', message: 'Please enter the email address we should reply to.' });
+  const convRef = typeof conversationId === 'string' ? conversationId.slice(0, 64) : null;
+
+  if (ticketDestination() === 'main_app' && !backofficePrincipal(req)) {
+    try {
+      const reference = await forwardTicket({
+        category: mainAppCategory(kb.support.ticketTopCategory(category)), description: cleanText(description).trim(),
+        email: req.member ? null : email, memberToken: req.memberToken ?? null, conversationRef: convRef,
+        clientIp: req.ip, source: convRef ? 'ai_chat' : 'help_center',
+      });
+      return res.status(201).json({ ticket_number: reference });
+    } catch (err) {
+      return res.status(err.status || 502).json({ error: 'ticket_failed', message: err.message });
+    }
+  }
+  if (config.isProduction && !config.demoMode) {
+    // A ticket nobody will read is worse than a clear "not available": production must forward.
+    return res.status(503).json({ error: 'tickets_unavailable', message: 'Tickets can\'t be sent right now. Please email support@wealthquest.com.' });
+  }
+  const files = Array.isArray(attachments) ? attachments.slice(0, 3).map((f) => ({ name: String(f?.name || '').slice(0, 120), size: Number(f?.size) || 0, type: String(f?.type || '').slice(0, 40) })) : [];
   const ticket = createTicket({
-    category, description: cleanText(description), sid: req.sid, conversationId: typeof conversationId === 'string' ? conversationId : null,
+    category, description: cleanText(description), sid: req.sid, conversationId: convRef, email: user ? null : email,
     user: user ? { member_sub: req.member?.sub ?? null, distributor_id: user.distributorId ?? null, name: user.name } : null,
     surface: req.member ? 'member' : user ? 'backoffice' : 'public', attachments: files,
   });
@@ -211,6 +236,8 @@ app.listen(config.port, () => {
     config.demoMode ? 'demo mode ON' : 'demo mode off',
     config.demoPassword && 'password gate ON',
     `member sign-in ${config.wqIssuer ? `via ${config.wqIssuer}` : 'off'}`,
+    `tickets → ${ticketDestination() === 'main_app' ? config.mainAppUrl : 'data/tickets.jsonl'}`,
   ].filter(Boolean);
+  if (config.isProduction && ticketDestination() !== 'main_app') console.warn('[tickets] production without MAIN_APP_URL + AI_SUPPORT_SERVICE_SECRET: tickets are refused');
   console.log(`WealthQuest agents on http://localhost:${config.port} — ${mode}, ${extras.join(', ')}`);
 });

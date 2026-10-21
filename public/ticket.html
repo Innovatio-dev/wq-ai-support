@@ -28,6 +28,10 @@
         <div class="lbl-row"><label class="lbl" for="desc">Description of the problem</label><span class="count" id="count">0 / 2,000</span></div>
         <div class="field"><textarea id="desc" name="description" maxlength="2000" placeholder="Describe your problem or ask a question..."></textarea></div>
 
+        <label class="lbl" for="email">Your email</label>
+        <div class="field"><input type="email" id="email" name="email" maxlength="254" autocomplete="email" placeholder="We'll reply to this address" required></div>
+
+        <div class="att-block" id="att-block">
         <div class="lbl-row"><span class="lbl" id="att-l">Add attachments</span></div>
         <div class="dropzone" id="drop" aria-labelledby="att-l">
           <p>Drag and drop a file or browse to upload</p>
@@ -36,6 +40,7 @@
           <small>Attach up to 3 (jpg, png or pdf) files of MAX 10MB</small>
         </div>
         <ul class="files" id="files"></ul>
+        </div>
         <div class="form-error" id="err" role="alert" hidden></div>
 
         <div class="submit-row"><button class="btn" type="submit" id="submit" disabled>Submit</button></div>

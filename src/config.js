@@ -39,10 +39,15 @@ export const config = {
   mainAppUrl: parseOrigins(env.MAIN_APP_URL)[0] || '',
 
   // Member tokens minted by the main app (docs/embed-auth-plan.md §4.2). Unset WQ_ISSUER = members can't sign in
-  // (every request is a guest). WQ_JWKS_URL defaults to the issuer's published key set.
-  wqIssuer: (env.WQ_ISSUER || '').trim(),
+  // (every request is a guest). Trailing slashes are dropped, as the main app does for its own issuer
+  // (ssoConfig.issuer), since `iss` is compared exactly. WQ_JWKS_URL defaults to the issuer's published key set.
+  wqIssuer: (env.WQ_ISSUER || '').trim().replace(/\/+$/, ''),
   wqJwksUrl: (env.WQ_JWKS_URL || '').trim() || (env.WQ_ISSUER ? `${env.WQ_ISSUER.trim().replace(/\/+$/, '')}/.well-known/jwks.json` : ''),
   wqAudience: (env.WQ_AUDIENCE || '').trim() || 'wq-ai-support',
+
+  // Tickets go to the main app's support_tickets (POST {MAIN_APP_URL}/internal/ai/tickets), signed with this
+  // shared secret (docs/embed-auth-plan.md §6). Without both, tickets stay in data/tickets.jsonl (dev/demo only).
+  aiServiceSecret: env.AI_SUPPORT_SERVICE_SECRET || '',
   // Pages allowed to frame /embed (the main app). Unset in development = the local main app (:3333)
   // and the test host (`npm run embed:host`, :3334); unset in production = nobody.
   allowedParentOrigins: env.ALLOWED_PARENT_ORIGINS !== undefined
