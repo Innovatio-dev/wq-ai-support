@@ -43,3 +43,14 @@ resource "aws_ecr_lifecycle_policy" "app" {
     ]
   })
 }
+
+// CI pulls its base images (node, buildkit) through this account's ECR instead
+// of anonymously from public.ecr.aws: GitHub's shared runner IPs get
+// `429 Too Many Requests` there. The first pull of a tag creates the cached
+// repository ecr-public/<upstream path>; later pulls are served from ECR.
+//
+// Account-wide, keyed by prefix. Any project in the account may use it.
+resource "aws_ecr_pull_through_cache_rule" "ecr_public" {
+  ecr_repository_prefix = "ecr-public"
+  upstream_registry_url = "public.ecr.aws"
+}
