@@ -1,0 +1,9 @@
+output "url" { value = "https://${var.hostname}" }
+output "ecs_cluster_name" { value = var.cluster_name }
+output "ecs_service_name" { value = aws_ecs_service.app.name }
+output "ecs_service_arn" { value = aws_ecs_service.app.id }
+output "task_definition_family" { value = aws_ecs_task_definition.app.family }
+output "task_role_arns" { value = [aws_iam_role.execution.arn, aws_iam_role.task.arn] }
+output "app_log_group" { value = aws_cloudwatch_log_group.app.name }
+output "task_security_group_id" { value = aws_security_group.task.id }
+output "target_group_arn" { value = aws_lb_target_group.app.arn }

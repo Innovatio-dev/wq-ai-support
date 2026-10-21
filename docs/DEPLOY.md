@@ -2,6 +2,8 @@
 
 For DevOps. Covers this repo (`wq-ai-support`) and the settings it needs in the main app (`wealth-quest`). Background and contracts: [`embed-auth-plan.md`](embed-auth-plan.md).
 
+On AWS this is all in Terraform: [`infra/terraform/README.md`](../infra/terraform/README.md) (ECS next to the main app, secrets in SSM, deploys through `.github/workflows/deploy.yml`).
+
 ## What it is
 - A Node web service: the public help site, plus the chat panel (`/embed`) that the main app shows in an iframe on member pages and on its sign-in page.
 - No database. Conversations, rate limits and the daily AI budget are kept in memory.
