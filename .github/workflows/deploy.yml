@@ -107,8 +107,13 @@ jobs:
           echo "run_tag=$run_tag"     >>"$GITHUB_OUTPUT"
           echo "image=${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:$build_tag" >>"$GITHUB_OUTPUT"
 
+      # BuildKit and the node base image come through this account's ECR
+      # pull-through cache (infra/terraform/envs/staging/ecr.tf): anonymous pulls
+      # from public.ecr.aws and Docker Hub get 429s on GitHub's shared runner IPs.
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
+        with:
+          driver-opts: image=${{ steps.ecr.outputs.registry }}/ecr-public/vend/moby/buildkit:buildx-stable-1
 
       # Only the immutable tag: the tests may still fail.
       - name: Build & push image
@@ -122,6 +127,7 @@ jobs:
           tags: ${{ steps.tags.outputs.image }}
           build-args: |
             APP_COMMIT=${{ steps.tags.outputs.sha }}
+            NODE_IMAGE=${{ steps.ecr.outputs.registry }}/ecr-public/docker/library/node
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

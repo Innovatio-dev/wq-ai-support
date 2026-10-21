@@ -84,10 +84,12 @@ variable "app_secret_names" {
   default = ["OPENROUTER_API_KEY", "SESSION_SECRET", "AI_SUPPORT_SERVICE_SECRET"]
 }
 
-// The repo whose GitHub Actions may assume the deploy role (github-deploy.tf).
-variable "github_repository" {
+// The OIDC subject prefix of the repo whose GitHub Actions may assume the
+// deploy role (github-deploy.tf). Immutable form: survives a rename, and a
+// different repo later created under the same name cannot match it.
+variable "github_oidc_sub_prefix" {
   type    = string
-  default = "Innovatio-dev/wq-ai-support"
+  default = "repo:Innovatio-dev@137341951/wq-ai-support@1425925557"
 }
 
 variable "log_retention_days" {

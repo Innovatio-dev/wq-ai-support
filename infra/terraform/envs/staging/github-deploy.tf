@@ -43,12 +43,18 @@ data "aws_iam_policy_document" "github_deploy_trust" {
 
     // Only jobs that run in one of this repo's GitHub environments - which is
     // where branch rules and production reviewers are enforced.
+    //
+    // This repo uses GitHub's immutable OIDC subject, which carries the owner
+    // and repo IDs ("repo:Innovatio-dev@137341951/wq-ai-support@1425925557:...").
+    // The main app's repo still uses the plain "repo:Innovatio-dev/wealth-quest"
+    // form, so its trust policy is not a template for this one. Check with
+    // `gh api repos/<repo>/actions/oidc/customization/sub` (sub_claim_prefix).
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
       values = [
-        "repo:${var.github_repository}:environment:staging",
-        "repo:${var.github_repository}:environment:production",
+        "${var.github_oidc_sub_prefix}:environment:staging",
+        "${var.github_oidc_sub_prefix}:environment:production",
       ]
     }
   }
@@ -78,6 +84,20 @@ data "aws_iam_policy_document" "github_deploy" {
       "ecr:BatchGetImage",
     ]
     resources = [aws_ecr_repository.app.arn]
+  }
+
+  // Base images through the pull-through cache (ecr.tf). CreateRepository and
+  // BatchImportUpstreamImage are what let the first pull of a new tag populate it.
+  statement {
+    sid = "EcrPullThroughCache"
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchGetImage",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:CreateRepository",
+      "ecr:BatchImportUpstreamImage",
+    ]
+    resources = ["arn:aws:ecr:${var.aws_region}:${local.account_id}:repository/${aws_ecr_pull_through_cache_rule.ecr_public.ecr_repository_prefix}/*"]
   }
 
   // CI never authors a task definition; it only restarts the service onto the
